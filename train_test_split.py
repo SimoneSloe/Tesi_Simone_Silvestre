@@ -1,37 +1,17 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.model_selection import StratifiedShuffleSplit
 
 
 data_df = pd.read_csv('Dataset/gare-empulia-cpv.csv')
-labels = data_df['COD_CPV']
+labels = data_df.COD_CPV
 data_df = data_df.drop(columns='COD_CPV')
 
-X = np.array(data_df)
-y = np.array(labels)
 
 
-# all_indices = list(range(len(data_df)))
-# train_indices, test_indices = train_test_split(all_indices, test_size=0.3)
-#
-# train = data_df.iloc[train_indices, :]
-# test = data_df.iloc[test_indices, :]
-#
-# def get_class_counts(df):
-#     grp = df.groupby(['COD_CPV']).nunique()
-#     return{key: grp[key] for key in list(grp.keys())}
-#
-# def get_class_proportions(df):
-#     class_counts = get_class_counts(df)
-#     return {val[0]: round(val[1]/df.shape[0], 4) for val in class_counts.items()}
-#
-#
-# train_class_proportions = get_class_proportions(train)
-# test_class_proportions = get_class_proportions(test)
-#
-# print("Train data class proportions", train_class_proportions[0])
-# print("Test data class proportions", test_class_proportions[0])
+# X = np.array(data_df)
+# y = np.array(labels)
 
 
 # count = 0
@@ -43,15 +23,26 @@ y = np.array(labels)
 #
 # print(count)
 
-sss = StratifiedShuffleSplit(n_splits=5, test_size=0.3, random_state=0)
-for train_index, test_index in sss.split(X, y):
-    print("TRAIN:", train_index, "TEST:", test_index)
-    X_train, X_test = X[train_index], X[test_index]
-    y_train, y_test = y[train_index], y[test_index]
+
+
+# sss = StratifiedShuffleSplit(n_splits=5, test_size=0.3, random_state=0)
+# for train_index, test_index in sss.split(X, y):
+#     print("TRAIN:", train_index, "TEST:", test_index)
+#     X_train, X_test = X[train_index], X[test_index]
+#     y_train, y_test = y[train_index], y[test_index]
+
 
 
 # train, test = train_test_split(data_df, test_size=0.3, random_state=4, stratify=labels)
 
 
 
+# test_ratio = 0.3
+#
+# def split_train_test(data: np.ndarray, distribution: list, test_ratio: float):
+#     skf = StratifiedKFold(n_splits=int(test_ratio * 100), random_state=1374, shuffle=True)
+#     return next(skf.split(data, distribution))
+#
+#
+# split_train_test(data_df, labels, test_ratio)
 
