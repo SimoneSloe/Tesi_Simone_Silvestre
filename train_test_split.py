@@ -8,8 +8,8 @@ data_df = pd.read_csv('Dataset/gare-empulia-cpv.csv')
 labels = data_df['COD_CPV']
 data_df = data_df.drop(columns='COD_CPV')
 
-# x = np.array(data_df)
-# y = np.array(labels)
+X = np.array(data_df)
+y = np.array(labels)
 
 
 # all_indices = list(range(len(data_df)))
@@ -43,8 +43,14 @@ data_df = data_df.drop(columns='COD_CPV')
 #
 # print(count)
 
+sss = StratifiedShuffleSplit(n_splits=5, test_size=0.3, random_state=0)
+for train_index, test_index in sss.split(X, y):
+    print("TRAIN:", train_index, "TEST:", test_index)
+    X_train, X_test = X[train_index], X[test_index]
+    y_train, y_test = y[train_index], y[test_index]
 
-train, test = train_test_split(data_df, test_size=0.3, random_state=4, stratify=labels)
+
+# train, test = train_test_split(data_df, test_size=0.3, random_state=4, stratify=labels)
 
 
 
