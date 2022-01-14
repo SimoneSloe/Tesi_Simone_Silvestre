@@ -23,6 +23,9 @@ from sklearn.model_selection import StratifiedShuffleSplit
 
 
 # Funzione che analizza i token file per file, e restituisce un dict contenente i cig e i token ad essi associati
+from sklearn.preprocessing import StandardScaler
+
+
 def create_token_list(cig_list, folder_path):
     cig_dict = {}
     # Cambio la cartella corrente con quella passata alla funzione
@@ -345,12 +348,17 @@ if __name__ == '__main__':
     X_test = np.array(test_vecs)
     y_test = np.array(test.CPV.values.tolist())
 
+    # Feature Scaling
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
     # SUPPORT VECTOR MACHINE
 
     # TRAIN
 
     # Creo un modello per la SVM utilizzando l'implementazione svc
-    svc = svm.SVC(kernel='linear', probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
+    svc = svm.SVC(probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
     # Addestro il modello utilizzando il training set
     svc.fit(X_train, y_train)
 
@@ -532,12 +540,17 @@ if __name__ == '__main__':
     X_test = np.array(test_vecs)
     y_test = np.array(test.CPV.values.tolist())
 
+    # Feature Scaling
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
     # SUPPORT VECTOR MACHINE
 
     # TRAIN
 
     # Creo un modello per la SVM utilizzando l'implementazione svc
-    svc = svm.SVC(kernel='linear', probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
+    svc = svm.SVC(probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
     # Addestro il modello utilizzando il training set
     svc.fit(X_train, y_train)
 
@@ -572,7 +585,7 @@ if __name__ == '__main__':
     # TRAIN
 
     # Creo un modello per RF
-    rf = RandomForestClassifier(n_estimators=100)
+    rf = RandomForestClassifier()
 
     # Addestro il classificatore con i dati di train
     rf.fit(X_train, y_train)
