@@ -124,6 +124,9 @@ def parse_token_file(cig_list, cig_dictionary, unzipped_file):
                 if re.match("^[0-9]{7}[A-Z0-9]*$", element):
                     # Memorizzo il CIG
                     cig = element
+                    break  # se esamina anche l'ultima parte del path ci possono essere casi in cui i file hanno nel
+                    # nome un CPV, e può creare problemi. Quindi interrompo, appena trovo il CPV nel percorso
+
             # Se il cig fa parte della lista dei cig del dataset (csv)
             if cig in cig_list:
                 # Se il cig è già nel dizionario
@@ -131,10 +134,11 @@ def parse_token_file(cig_list, cig_dictionary, unzipped_file):
                     for document in conll_lines:
                         cig_tokens = []
                         token_parser(document, cig_tokens)
-                        # Se la lista dei token non è vuota (possono succedere casi in cui è vuota perchè la frase contiene soltanto termini da eliminare)
+                        # Se la lista dei token non è vuota (possono succedere casi in cui è vuota perchè la frase
+                        # contiene soltanto termini da eliminare)
                         if cig_tokens:
                             cig_dictionary[cig].extend(cig_tokens)
-                else: # Se il cig non è nel dizionario come chiave
+                else:  # Se il cig non è nel dizionario come chiave
                     # aggiungo una nuova chiave alla dict, che sarebbe il cig, con valore una lista vuota
                     cig_dictionary[cig] = []
                     # Per ogni documento nel formato conll
@@ -259,6 +263,11 @@ if __name__ == '__main__':
     # Cambio la cartella corrente
     os.chdir('Dictionary_Corpus_Bigrams')
 
+    if not os.path.isdir("1_Divisione_semplice_dataset"):
+        os.makedirs("1_Divisione_semplice_dataset")
+
+    os.chdir("1_Divisione_semplice_dataset")
+
     # Memorizzo il corpus, il dizionario e i bigrammi
     with open('train_corpus.pkl', 'wb') as f:
         pickle.dump(train_corpus, f)
@@ -269,10 +278,9 @@ if __name__ == '__main__':
 
     # Esco dalla cartella
     os.chdir("../")
+    os.chdir("../")
 
     # ******************************************************
-
-    # TESTARE HDP, per vedere se i topic sono sempre 20
 
     start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
 
@@ -293,7 +301,8 @@ if __name__ == '__main__':
         print("LDA addestrato in", ((end_time - start_time).total_seconds() / 60),
               "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
 
-        # Creo una cartella in cui salverò il modello LDA
+        # *******************************  Creo una cartella in cui salverò il modello LDA
+
         # Se la cartella non esiste la creo
         if not os.path.isdir("Lda_model"):
             os.makedirs("Lda_model")
@@ -301,10 +310,18 @@ if __name__ == '__main__':
         # Cambio la cartella corrente
         os.chdir('Lda_model')
 
+        if not os.path.isdir("1_Divisione_semplice_dataset"):
+            os.makedirs("1_Divisione_semplice_dataset")
+
+        os.chdir("1_Divisione_semplice_dataset")
+
         lda_train.save('lda_train.model')
 
         # Esco dalla cartella
         os.chdir("../")
+        os.chdir("../")
+
+        # *********************************************************
 
         # Per ogni topic, mostrerà le parole che occorrono in quel topic con il relativo peso
         # for idx, topic in lda_train.print_topics(-1):
@@ -320,9 +337,7 @@ if __name__ == '__main__':
 
     # Applico il topic model addestrato al train e test set, estraendono i feature vectors che conterrano la distribuzione di probabilità dei topic per ogni CIG
     train_vecs = extract_feature_vecs(train_bigram, train_corpus)
-    print(train_vecs)
     test_vecs = extract_feature_vecs(test_bigram, test_corpus)
-    print(test_vecs)
 
     X_train = np.array(train_vecs)
     y_train = np.array(train.CPV.values.tolist())
@@ -335,14 +350,20 @@ if __name__ == '__main__':
     # TRAIN
 
     # Creo un modello per la SVM utilizzando l'implementazione svc
-    svc = svm.SVC(probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
+    svc = svm.SVC(kernel='linear', probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
     # Addestro il modello utilizzando il training set
-    svc.fit(train_vecs, y_train)
+    svc.fit(X_train, y_train)
 
     # TEST
 
     # Il modello prevede la risposta per il test set
-    y_pred_svc = svc.predict(test_vecs)
+    y_pred_svc = svc.predict(X_test)
+
+    i = 0
+    print("SVC PRIMO:")
+    while i < 15:
+        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc[i])
+        i += 1
 
     # Calcola la distr. di probabilità dei CPV per ogni CIG del test set
     # prova = svc.predict_proba(test_vecs)
@@ -363,7 +384,7 @@ if __name__ == '__main__':
     # TRAIN
 
     # Creo un modello per RF
-    rf = RandomForestClassifier(n_estimators=100)
+    rf = RandomForestClassifier()
 
     # Addestro il classificatore con i dati di train
     rf.fit(X_train, y_train)
@@ -371,6 +392,13 @@ if __name__ == '__main__':
     # TEST
 
     y_pred_rf = rf.predict(X_test)
+
+    i = 0
+    print("RF PRIMO:")
+    while i < 15:
+        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
+              y_pred_rf[i])
+        i += 1
 
     # VALUTAZIONE
 
@@ -387,10 +415,6 @@ if __name__ == '__main__':
 
 
 
-
-
-
-    #
     # ______________________________________________________________________________________
 
     # --------------------- SECONDO ESPERIMENTO ---------------------
@@ -406,8 +430,10 @@ if __name__ == '__main__':
     # Mantengo nel dataframe i CIG che hanno più di una occorrenza
     df_without_one = new_df[~new_df.CPV.isin(to_remove)]
 
+    labeeel = df_without_one.CPV.values.tolist()
+
     # Divido il dataframe mantenendo la stessa distrubuzione delle label nel train e test set
-    train, test = train_test_split(df_without_one, test_size=0.3, stratify=df_without_one.CPV)
+    train, test = train_test_split(df_without_one, test_size=0.3, stratify=labeeel)
 
     # Dal train e dal test estraggo i token per ogni cig, i bigrammi, il dizionario e la bow
     train_bigram, train_dictionary, train_corpus = create_dictionary_and_corpus(train)
@@ -422,6 +448,11 @@ if __name__ == '__main__':
     # Cambio la cartella corrente
     os.chdir('Dictionary_Corpus_Bigrams')
 
+    if not os.path.isdir("2_Divisione_mantenendo_distribuzione"):
+        os.makedirs("2_Divisione_mantenendo_distribuzione")
+
+    os.chdir("2_Divisione_mantenendo_distribuzione")
+
     # Memorizzo il corpus, il dizionario e i bigrammi
     with open('train_corpus.pkl', 'wb') as f:
         pickle.dump(train_corpus, f)
@@ -432,10 +463,9 @@ if __name__ == '__main__':
 
     # Esco dalla cartella
     os.chdir("../")
+    os.chdir("../")
 
     # ******************************************************
-
-    # TESTARE HDP, per vedere se i topic sono sempre 20
 
     start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
 
@@ -457,7 +487,8 @@ if __name__ == '__main__':
         print("LDA addestrato in", ((end_time - start_time).total_seconds() / 60),
               "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
 
-        # Creo una cartella in cui salverò il modello LDA
+        # ****************************** Creo una cartella in cui salverò il modello LDA
+
         # Se la cartella non esiste la creo
         if not os.path.isdir("Lda_model"):
             os.makedirs("Lda_model")
@@ -465,10 +496,18 @@ if __name__ == '__main__':
         # Cambio la cartella corrente
         os.chdir('Lda_model')
 
+        if not os.path.isdir("2_Divisione_mantenendo_distribuzione"):
+            os.makedirs("2_Divisione_mantenendo_distribuzione")
+
+        os.chdir("2_Divisione_mantenendo_distribuzione")
+
         lda_train.save('lda_train.model')
 
         # Esco dalla cartella
         os.chdir("../")
+        os.chdir("../")
+
+        # **************************************************
 
         # Per ogni topic, mostrerà le parole che occorrono in quel topic con il relativo peso
         # for idx, topic in lda_train.print_topics(-1):
@@ -485,9 +524,7 @@ if __name__ == '__main__':
 
     # Applico il topic model addestrato al train e test set, estraendono i feature vectors che conterrano la distribuzione di probabilità dei topic per ogni CIG
     train_vecs = extract_feature_vecs(train_bigram, train_corpus)
-    print(train_vecs)
     test_vecs = extract_feature_vecs(test_bigram, test_corpus)
-    print(test_vecs)
 
     X_train = np.array(train_vecs)
     y_train = np.array(train.CPV.values.tolist())
@@ -500,15 +537,21 @@ if __name__ == '__main__':
     # TRAIN
 
     # Creo un modello per la SVM utilizzando l'implementazione svc
-    svc = svm.SVC(
-        probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
+    svc = svm.SVC(kernel='linear', probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
     # Addestro il modello utilizzando il training set
-    svc.fit(train_vecs, y_train)
+    svc.fit(X_train, y_train)
 
     # TEST
 
     # Il modello prevede la risposta per il test set
-    y_pred_svc = svc.predict(test_vecs)
+    y_pred_svc = svc.predict(X_test)
+
+    print("SVC SECONDO:")
+    i = 0
+    while i < 15:
+        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
+              y_pred_svc[i])
+        i += 1
 
     # Calcola la distr. di probabilità dei CPV per ogni CIG del test set
     # prova = svc.predict_proba(test_vecs)
@@ -537,6 +580,13 @@ if __name__ == '__main__':
     # TEST
 
     y_pred_rf = rf.predict(X_test)
+
+    i = 0
+    print("RF SECONDO:")
+    while i < 15:
+        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
+              y_pred_rf[i])
+        i += 1
 
     # VALUTAZIONE
 
