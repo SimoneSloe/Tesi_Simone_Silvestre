@@ -154,6 +154,18 @@ def parse_token_file(cig_list, cig_dictionary, unzipped_file):
     return cig_dictionary
 
 
+# Funzione che estra i cpv dal file csv in base al cig
+def cpv_extracter_from_csv():
+    csv_labels = []
+    a = data_df.CIG.values.tolist()
+    b = data_df.COD_CPV.values.tolist()
+    for key in cig_token_dictionary.keys():
+        for i in range(len(data_df)):
+            if a[i] == key:
+                csv_labels.append(b[i])
+    return csv_labels
+
+
 # Funzione che crea un modello per creare bigrammi
 def bigrams(words, bi_min=15, tri_min=10):
     # Costruzione bigram model
@@ -166,7 +178,7 @@ def bigrams(words, bi_min=15, tri_min=10):
 # Funzione che estrae i token dal dataframe
 def cig_token_list(df):
     tmp_list = []
-    for line in df['TOKEN_CIG']:
+    for line in df.TOKEN_CIG:
         tmp_list.append(line)
     return tmp_list
 
@@ -209,9 +221,9 @@ def feature_extraction_topic(cig_bigram, corpus):
 def feature_extraction_bow(train_tokens, test_tokens):
     # Per applicare il countvectorizer su una lista di parole, bisogna disabilitare l'analyzer
     vectorizer = CountVectorizer(analyzer=lambda x: x)
-    X_train = vectorizer.fit_transform(train_tokens).toarray()
-    X_test = vectorizer.transform(test_tokens).toarray()
-    return X_train, X_test
+    x_tr = vectorizer.fit_transform(train_tokens).toarray()
+    x_te = vectorizer.transform(test_tokens).toarray()
+    return x_tr, x_te
 
 
 # Funzione che ridimensiona le feature (sottraendo la media e dividendo per la deviazione standard)
@@ -230,14 +242,13 @@ if __name__ == '__main__':
 
     # Leggo il csv contenente i dati e creo un dataframe
     data_df = pd.read_csv('Dataset/gare-empulia-cpv.csv')
-    labels = data_df.COD_CPV
     # Rimuovo le colonne che non servono
     data_df = data_df.drop(columns=['DESCRIZIONE_CPV', 'OGGETTO_LOTTO'])
 
     # Creo una lista dei CIG
     cigs_list = data_df.CIG.values.tolist()
-    print("______CIG_TRAIN_LIST:", len(cigs_list))
 
+    # Assegno a una variabile il percorso passato dal terminale
     data_folder = sys.argv[1]        # (1) "D:/Marilisa/Tesi/Dataset/process_bandi_cpv/udpipe",  (2) "D:/PycharmProject/pythonproject/provaset"
 
     # Creo un dict che avrà come chiave il CIG, e come valore una lista che conterrà i token rispettivi
@@ -247,16 +258,8 @@ if __name__ == '__main__':
     s1 = pd.Series(cig_token_dictionary.keys(), name='CIG')
     s2 = pd.Series(list(cig_token_dictionary.values()), name='TOKEN_CIG')
 
-    print("______NUM_CIG:", len(cig_token_dictionary))
-
     # Dal dataframe estraggo il CPV corrispondente al cig e ne creo un altra Series
-    df_labels = []
-    a = data_df.CIG.values.tolist()
-    b = data_df.COD_CPV.values.tolist()
-    for key in cig_token_dictionary.keys():
-        for i in range(len(data_df)):
-            if a[i] == key:
-                df_labels.append(b[i])
+    df_labels = cpv_extracter_from_csv()
 
     s3 = pd.Series(df_labels, name='CPV')
 
@@ -301,7 +304,7 @@ if __name__ == '__main__':
 
     start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
 
-    print("Training LDA Model...")
+    print("\n Training LDA Model...")
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         lda_train = gensim.models.ldamulticore.LdaMulticore(
@@ -352,6 +355,7 @@ if __name__ == '__main__':
         print("COHERENCE CALCOLATA IN:", ((end_time - start_time).total_seconds() / 60),
               "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
 
+    print("\n Estrazione feature dal topic model..")
     # Applico il topic model addestrato al train e test set, estraendono i feature vectors che conterrano la distribuzione dei topic per ogni CIG
     train_vecs = feature_extraction_topic(train_bigram, train_corpus)
     test_vecs = feature_extraction_topic(test_bigram, test_corpus)
@@ -362,20 +366,18 @@ if __name__ == '__main__':
     y_train = np.array(train.CPV.values.tolist())
     y_test = np.array(test.CPV.values.tolist())
 
-    print("Estrazione feature dalla bow...")
+    print("\n Estrazione feature dalla bow...")
     start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
 
     # Estraggo le feature anche dalla bow
-    X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)
+    X_train_bow, X_test_bow = feature_extraction_bow(train_bigram, test_bigram)  # (train.TOKEN_CIG, test.TOKEN_CIG)
 
     end_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
-    print("FEATURE ESTRATTE DALLA BOW IN:", ((end_time - start_time).total_seconds() / 60),
-          "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
+    print("FEATURE ESTRATTE DALLA BOW IN:", ((end_time - start_time).total_seconds() / 60), "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
 
     # Scalo le feature per entrambi gli esperimenti
     # X_train, X_test = feature_scaler(X_train, X_test)
     # X_train_bow, X_test_bow = feature_scaler(X_train_bow, X_test_bow)
-
 
     # SUPPORT VECTOR MACHINE
 
@@ -394,7 +396,7 @@ if __name__ == '__main__':
     y_pred_svc = svc.predict(X_test)
 
     i = 0
-    print("SVC PRIMO TOPIC_MODEL:")
+    print("\n SVC PRIMO TOPIC_MODEL:")
     while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc[i])
         i += 1
@@ -423,7 +425,7 @@ if __name__ == '__main__':
     y_pred_svc_bow = svc.predict(X_test_bow)
 
     i = 0
-    print("SVC PRIMO BOW:")
+    print("\n SVC PRIMO BOW:")
     while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc_bow[i])
         i += 1
@@ -436,7 +438,7 @@ if __name__ == '__main__':
     # Model Accuracy: how often is the classifier correct?
     print("Support vector machine accuracy (bow):", metrics.accuracy_score(y_test, y_pred_svc_bow))
 
-    # ***********************************************************************************+
+    # ========================================================
 
     # RANDOM FOREST
 
@@ -455,7 +457,7 @@ if __name__ == '__main__':
     y_pred_rf = rf.predict(X_test)
 
     i = 0
-    print("RF PRIMO TOPIC_MODEL:")
+    print("\n RF PRIMO TOPIC_MODEL:")
     while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
               y_pred_rf[i])
@@ -480,7 +482,7 @@ if __name__ == '__main__':
     y_pred_rf_bow = rf.predict(X_test_bow)
 
     i = 0
-    print("RF PRIMO BOW:")
+    print("\n RF PRIMO BOW:")
     while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
               y_pred_rf_bow[i])
@@ -489,11 +491,6 @@ if __name__ == '__main__':
     # VALUTAZIONE
 
     print("Random forest accuracy (bow):", metrics.accuracy_score(y_test, y_pred_rf_bow))
-
-
-
-
-
 
     # ______________________________________________________________________________________
 
@@ -550,7 +547,7 @@ if __name__ == '__main__':
 
     start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
 
-    print("Training LDA Model...")
+    print("\n Training LDA Model...")
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         lda_train = gensim.models.ldamulticore.LdaMulticore(
@@ -603,6 +600,7 @@ if __name__ == '__main__':
         print("COHERENCE CALCOLATA IN:", ((end_time - start_time).total_seconds() / 60),
               "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
 
+    print("\n Estrazione feature dal topic model..")
     # Applico il topic model addestrato al train e test set, estraendono i feature vectors che conterrano la distribuzione dei topic per ogni CIG
     train_vecs = feature_extraction_topic(train_bigram, train_corpus)
     test_vecs = feature_extraction_topic(test_bigram, test_corpus)
@@ -613,7 +611,7 @@ if __name__ == '__main__':
     y_train = np.array(train.CPV.values.tolist())
     y_test = np.array(y_test)
 
-    print("Estrazione feature dalla bow...")
+    print("\n Estrazione feature dalla bow...")
     start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
 
     # Estraggo le feature anche dalla bow
@@ -645,7 +643,7 @@ if __name__ == '__main__':
     y_pred_svc = svc.predict(X_test)
 
     i = 0
-    print("SVC SECONDO TOPIC_MODEL:")
+    print("\n SVC SECONDO TOPIC_MODEL:")
     while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc[i])
         i += 1
@@ -673,7 +671,7 @@ if __name__ == '__main__':
     y_pred_svc_bow = svc.predict(X_test_bow)
 
     i = 0
-    print("SVC SECONDO BOW:")
+    print("\n SVC SECONDO BOW:")
     while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc_bow[i])
         i += 1
@@ -705,7 +703,7 @@ if __name__ == '__main__':
     y_pred_rf = rf.predict(X_test)
 
     i = 0
-    print("RF SECONDO TOPIC_MODEL:")
+    print("\n RF SECONDO TOPIC_MODEL:")
     while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
               y_pred_rf[i])
@@ -730,7 +728,7 @@ if __name__ == '__main__':
     y_pred_rf_bow = rf.predict(X_test_bow)
 
     i = 0
-    print("RF SECONDO BOW:")
+    print("\n RF SECONDO BOW:")
     while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
               y_pred_rf_bow[i])
