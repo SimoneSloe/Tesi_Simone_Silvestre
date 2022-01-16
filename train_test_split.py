@@ -11,21 +11,18 @@ import gensim
 import pickle
 from sklearn import svm
 from sklearn import metrics
-from gensim.models import CoherenceModel
+from gensim.models import CoherenceModel, TfidfModel
 from nltk.corpus import stopwords
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
+from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import f1_score, confusion_matrix, precision_score, recall_score
-from sklearn.model_selection import train_test_split, StratifiedKFold, KFold, cross_val_predict
-from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
 # *************************** FUNZIONI ***************************
 
 
 # Funzione che analizza i token file per file, e restituisce un dict contenente i cig e i token ad essi associati
-from sklearn.preprocessing import StandardScaler
-
-
 def create_token_list(cig_list, folder_path):
     cig_dict = {}
     # Cambio la cartella corrente con quella passata alla funzione
@@ -197,8 +194,8 @@ def create_dictionary_and_corpus(df):
     return bigram, dictionary, bow_corpus
 
 
-# Funzione che restituisce i feature vectors che conterrano la distribuzione dei topic per ogni CIG
-def extract_feature_vecs(cig_bigram, corpus):
+# Funzione che restituisce i feature vectors dal topic model che conterrano la distribuzione dei topic per ogni CIG
+def feature_extraction_topic(cig_bigram, corpus):
     vecs = []
     for i in range(len(cig_bigram)):
         # Ottengo la distribuzione dei topic per il dato CIG
@@ -206,6 +203,23 @@ def extract_feature_vecs(cig_bigram, corpus):
         topic_vec = [top_topics[i][1] for i in range(20)]
         vecs.append(topic_vec)
     return vecs
+
+
+# Funzione che estrae le feature dalla bow
+def feature_extraction_bow(train_tokens, test_tokens):
+    # Per applicare il countvectorizer su una lista di parole, bisogna disabilitare l'analyzer
+    vectorizer = CountVectorizer(analyzer=lambda x: x)
+    X_train = vectorizer.fit_transform(train_tokens).toarray()
+    X_test = vectorizer.transform(test_tokens).toarray()
+    return X_train, X_test
+
+
+# Funzione che ridimensiona le feature (sottraendo la media e dividendo per la deviazione standard)
+def feature_scaler(train_feature, test_feature):
+    scaler_bow = StandardScaler()
+    train_feature_scaled = scaler_bow.fit_transform(X_train_bow)
+    test_feature_scaled = scaler_bow.transform(X_test_bow)
+    return train_feature_scaled, test_feature_scaled
 
 
 # *************************** MAIN ***************************
@@ -224,7 +238,7 @@ if __name__ == '__main__':
     cigs_list = data_df.CIG.values.tolist()
     print("______CIG_TRAIN_LIST:", len(cigs_list))
 
-    data_folder = "D:/Marilisa/Tesi/Dataset/process_bandi_cpv/udpipe"  # "D:/PycharmProject/pythonproject/provaset"
+    data_folder = sys.argv[1]        # (1) "D:/Marilisa/Tesi/Dataset/process_bandi_cpv/udpipe",  (2) "D:/PycharmProject/pythonproject/provaset"
 
     # Creo un dict che avrà come chiave il CIG, e come valore una lista che conterrà i token rispettivi
     cig_token_dictionary = create_token_list(cigs_list, data_folder)
@@ -338,22 +352,27 @@ if __name__ == '__main__':
         print("COHERENCE CALCOLATA IN:", ((end_time - start_time).total_seconds() / 60),
               "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
 
-    # Applico il topic model addestrato al train e test set, estraendono i feature vectors che conterrano la distribuzione di probabilità dei topic per ogni CIG
-    train_vecs = extract_feature_vecs(train_bigram, train_corpus)
-    test_vecs = extract_feature_vecs(test_bigram, test_corpus)
+    # Applico il topic model addestrato al train e test set, estraendono i feature vectors che conterrano la distribuzione dei topic per ogni CIG
+    train_vecs = feature_extraction_topic(train_bigram, train_corpus)
+    test_vecs = feature_extraction_topic(test_bigram, test_corpus)
 
     X_train = np.array(train_vecs)
-    y_train = np.array(train.CPV.values.tolist())
-
     X_test = np.array(test_vecs)
+
+    y_train = np.array(train.CPV.values.tolist())
     y_test = np.array(test.CPV.values.tolist())
 
-    # Feature Scaling
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
+    # Estraggo le feature anche dalla bow
+    X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)
+
+    # Scalo le feature per entrambi gli esperimenti
+    X_train, X_test = feature_scaler(X_train, X_test)
+    X_train_bow, X_test_bow = feature_scaler(X_train_bow, X_test_bow)
+
 
     # SUPPORT VECTOR MACHINE
+
+    # FEATURE VECTOR DA TOPIC MODEL
 
     # TRAIN
 
@@ -368,8 +387,8 @@ if __name__ == '__main__':
     y_pred_svc = svc.predict(X_test)
 
     i = 0
-    print("SVC PRIMO:")
-    while i < 15:
+    print("SVC PRIMO TOPIC_MODEL:")
+    while i < 1:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc[i])
         i += 1
 
@@ -379,7 +398,36 @@ if __name__ == '__main__':
     # VALUTAZIONE
 
     # Model Accuracy: how often is the classifier correct?
-    print("Support vector machine accuracy:", metrics.accuracy_score(y_test, y_pred_svc))
+    print("Support vector machine accuracy (topic model):", metrics.accuracy_score(y_test, y_pred_svc))
+
+
+    # FEATURE VECTOR DALLA BOW
+
+    # TRAIN
+
+    # Creo un modello per la SVM utilizzando l'implementazione svc
+    svc = svm.SVC(probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
+    # Addestro il modello utilizzando il training set
+    svc.fit(X_train_bow, y_train)
+
+    # TEST
+
+    # Il modello prevede la risposta per il test set
+    y_pred_svc_bow = svc.predict(X_test_bow)
+
+    i = 0
+    print("SVC PRIMO BOW:")
+    while i < 1:
+        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc_bow[i])
+        i += 1
+
+    # Calcola la distr. di probabilità dei CPV per ogni CIG del test set
+    # prova = svc.predict_proba(test_vecs)
+
+    # VALUTAZIONE
+
+    # Model Accuracy: how often is the classifier correct?
+    print("Support vector machine accuracy (bow):", metrics.accuracy_score(y_test, y_pred_svc_bow))
 
     # Model Precision: what percentage of positive tuples are labeled as such?
     # print("Precision:", metrics.precision_score(y_test, y_pred, average='macro'))
@@ -387,7 +435,11 @@ if __name__ == '__main__':
     # Model Recall: what percentage of positive tuples are labelled as such?
     # print("Recall:", metrics.recall_score(y_test, y_pred, average='macro'))
 
+    # ***********************************************************************************+
+
     # RANDOM FOREST
+
+    # FEATURE VECTOR DA TOPIC MODEL
 
     # TRAIN
 
@@ -402,21 +454,40 @@ if __name__ == '__main__':
     y_pred_rf = rf.predict(X_test)
 
     i = 0
-    print("RF PRIMO:")
-    while i < 15:
+    print("RF PRIMO TOPIC_MODEL:")
+    while i < 1:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
               y_pred_rf[i])
         i += 1
 
     # VALUTAZIONE
 
-    print("Random forest accuracy:", metrics.accuracy_score(y_test, y_pred_rf))
+    print("Random forest accuracy (topicmodel):", metrics.accuracy_score(y_test, y_pred_rf))
 
+    # FEATURE VECTOR DALLA BOW
 
+    # TRAIN
 
+    # Creo un modello per RF
+    rf = RandomForestClassifier()
 
+    # Addestro il classificatore con i dati di train
+    rf.fit(X_train_bow, y_train)
 
+    # TEST
 
+    y_pred_rf_bow = rf.predict(X_test_bow)
+
+    i = 0
+    print("RF PRIMO BOW:")
+    while i < 1:
+        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
+              y_pred_rf_bow[i])
+        i += 1
+
+    # VALUTAZIONE
+
+    print("Random forest accuracy (bow):", metrics.accuracy_score(y_test, y_pred_rf_bow))
 
 
 
@@ -438,10 +509,10 @@ if __name__ == '__main__':
     # Mantengo nel dataframe i CIG che hanno più di una occorrenza
     df_without_one = new_df[~new_df.CPV.isin(to_remove)]
 
-    labeeel = df_without_one.CPV.values.tolist()
+    label_list = df_without_one.CPV.values.tolist()
 
     # Divido il dataframe mantenendo la stessa distrubuzione delle label nel train e test set
-    train, test = train_test_split(df_without_one, test_size=0.3, stratify=labeeel)
+    train, test = train_test_split(df_without_one, test_size=0.3, stratify=label_list)
 
     # Dal train e dal test estraggo i token per ogni cig, i bigrammi, il dizionario e la bow
     train_bigram, train_dictionary, train_corpus = create_dictionary_and_corpus(train)
@@ -530,22 +601,27 @@ if __name__ == '__main__':
         print("COHERENCE CALCOLATA IN:", ((end_time - start_time).total_seconds() / 60),
               "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
 
-    # Applico il topic model addestrato al train e test set, estraendono i feature vectors che conterrano la distribuzione di probabilità dei topic per ogni CIG
-    train_vecs = extract_feature_vecs(train_bigram, train_corpus)
-    test_vecs = extract_feature_vecs(test_bigram, test_corpus)
+    # Applico il topic model addestrato al train e test set, estraendono i feature vectors che conterrano la distribuzione dei topic per ogni CIG
+    train_vecs = feature_extraction_topic(train_bigram, train_corpus)
+    test_vecs = feature_extraction_topic(test_bigram, test_corpus)
 
     X_train = np.array(train_vecs)
-    y_train = np.array(train.CPV.values.tolist())
-
     X_test = np.array(test_vecs)
+
+    y_train = np.array(train.CPV.values.tolist())
     y_test = np.array(test.CPV.values.tolist())
 
-    # Feature Scaling
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
+    # Estraggo le feature anche dalla bow
+    X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)
+
+    # Scalo le feature per entrambi gli esperimenti
+    X_train, X_test = feature_scaler(X_train, X_test)
+    X_train_bow, X_test_bow = feature_scaler(X_train_bow, X_test_bow)
+
 
     # SUPPORT VECTOR MACHINE
+
+    # FEATURE VECTOR DA TOPIC MODEL
 
     # TRAIN
 
@@ -559,11 +635,10 @@ if __name__ == '__main__':
     # Il modello prevede la risposta per il test set
     y_pred_svc = svc.predict(X_test)
 
-    print("SVC SECONDO:")
     i = 0
-    while i < 15:
-        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
-              y_pred_svc[i])
+    print("SVC SECONDO TOPIC_MODEL:")
+    while i < 5:
+        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc[i])
         i += 1
 
     # Calcola la distr. di probabilità dei CPV per ogni CIG del test set
@@ -572,7 +647,35 @@ if __name__ == '__main__':
     # VALUTAZIONE
 
     # Model Accuracy: how often is the classifier correct?
-    print("Support vector machine accuracy:", metrics.accuracy_score(y_test, y_pred_svc))
+    print("Support vector machine accuracy (topic model):", metrics.accuracy_score(y_test, y_pred_svc))
+
+    # FEATURE VECTOR DALLA BOW
+
+    # TRAIN
+
+    # Creo un modello per la SVM utilizzando l'implementazione svc
+    svc = svm.SVC(probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
+    # Addestro il modello utilizzando il training set
+    svc.fit(X_train_bow, y_train)
+
+    # TEST
+
+    # Il modello prevede la risposta per il test set
+    y_pred_svc_bow = svc.predict(X_test_bow)
+
+    i = 0
+    print("SVC SECONDO BOW:")
+    while i < 5:
+        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc_bow[i])
+        i += 1
+
+    # Calcola la distr. di probabilità dei CPV per ogni CIG del test set
+    # prova = svc.predict_proba(test_vecs)
+
+    # VALUTAZIONE
+
+    # Model Accuracy: how often is the classifier correct?
+    print("Support vector machine accuracy (bow):", metrics.accuracy_score(y_test, y_pred_svc_bow))
 
     # Model Precision: what percentage of positive tuples are labeled as such?
     # print("Precision:", metrics.precision_score(y_test, y_pred, average='macro'))
@@ -580,7 +683,11 @@ if __name__ == '__main__':
     # Model Recall: what percentage of positive tuples are labelled as such?
     # print("Recall:", metrics.recall_score(y_test, y_pred, average='macro'))
 
+    # ***********************************************************************************+
+
     # RANDOM FOREST
+
+    # FEATURE VECTOR DA TOPIC MODEL
 
     # TRAIN
 
@@ -595,13 +702,38 @@ if __name__ == '__main__':
     y_pred_rf = rf.predict(X_test)
 
     i = 0
-    print("RF SECONDO:")
-    while i < 15:
+    print("RF SECONDO TOPIC_MODEL:")
+    while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
               y_pred_rf[i])
         i += 1
 
     # VALUTAZIONE
 
-    print("Random forest accuracy:", metrics.accuracy_score(y_test, y_pred_rf))
+    print("Random forest accuracy (topicmodel):", metrics.accuracy_score(y_test, y_pred_rf))
+
+    # FEATURE VECTOR DALLA BOW
+
+    # TRAIN
+
+    # Creo un modello per RF
+    rf = RandomForestClassifier()
+
+    # Addestro il classificatore con i dati di train
+    rf.fit(X_train_bow, y_train)
+
+    # TEST
+
+    y_pred_rf_bow = rf.predict(X_test_bow)
+
+    i = 0
+    print("RF SECONDO BOW:")
+    while i < 5:
+        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
+              y_pred_rf_bow[i])
+        i += 1
+
+    # VALUTAZIONE
+
+    print("Random forest accuracy (bow):", metrics.accuracy_score(y_test, y_pred_rf_bow))
 
