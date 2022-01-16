@@ -362,12 +362,19 @@ if __name__ == '__main__':
     y_train = np.array(train.CPV.values.tolist())
     y_test = np.array(test.CPV.values.tolist())
 
+    print("Estrazione feature dalla bow...")
+    start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
+
     # Estraggo le feature anche dalla bow
     X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)
 
+    end_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
+    print("FEATURE ESTRATTE DALLA BOW IN:", ((end_time - start_time).total_seconds() / 60),
+          "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
+
     # Scalo le feature per entrambi gli esperimenti
-    X_train, X_test = feature_scaler(X_train, X_test)
-    X_train_bow, X_test_bow = feature_scaler(X_train_bow, X_test_bow)
+    # X_train, X_test = feature_scaler(X_train, X_test)
+    # X_train_bow, X_test_bow = feature_scaler(X_train_bow, X_test_bow)
 
 
     # SUPPORT VECTOR MACHINE
@@ -377,7 +384,7 @@ if __name__ == '__main__':
     # TRAIN
 
     # Creo un modello per la SVM utilizzando l'implementazione svc
-    svc = svm.SVC(probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
+    svc = svm.SVC()  # probability=True, permette di calcolare le probabilità. Cosa che svm non fa normalmente
     # Addestro il modello utilizzando il training set
     svc.fit(X_train, y_train)
 
@@ -388,7 +395,7 @@ if __name__ == '__main__':
 
     i = 0
     print("SVC PRIMO TOPIC_MODEL:")
-    while i < 1:
+    while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc[i])
         i += 1
 
@@ -406,7 +413,7 @@ if __name__ == '__main__':
     # TRAIN
 
     # Creo un modello per la SVM utilizzando l'implementazione svc
-    svc = svm.SVC(probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
+    svc = svm.SVC()  # probability=True, permette di calcolare le probabilità. Cosa che svm non fa normalmente
     # Addestro il modello utilizzando il training set
     svc.fit(X_train_bow, y_train)
 
@@ -417,7 +424,7 @@ if __name__ == '__main__':
 
     i = 0
     print("SVC PRIMO BOW:")
-    while i < 1:
+    while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc_bow[i])
         i += 1
 
@@ -428,12 +435,6 @@ if __name__ == '__main__':
 
     # Model Accuracy: how often is the classifier correct?
     print("Support vector machine accuracy (bow):", metrics.accuracy_score(y_test, y_pred_svc_bow))
-
-    # Model Precision: what percentage of positive tuples are labeled as such?
-    # print("Precision:", metrics.precision_score(y_test, y_pred, average='macro'))
-
-    # Model Recall: what percentage of positive tuples are labelled as such?
-    # print("Recall:", metrics.recall_score(y_test, y_pred, average='macro'))
 
     # ***********************************************************************************+
 
@@ -455,7 +456,7 @@ if __name__ == '__main__':
 
     i = 0
     print("RF PRIMO TOPIC_MODEL:")
-    while i < 1:
+    while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
               y_pred_rf[i])
         i += 1
@@ -480,7 +481,7 @@ if __name__ == '__main__':
 
     i = 0
     print("RF PRIMO BOW:")
-    while i < 1:
+    while i < 5:
         print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
               y_pred_rf_bow[i])
         i += 1
@@ -498,7 +499,7 @@ if __name__ == '__main__':
 
     # --------------------- SECONDO ESPERIMENTO ---------------------
 
-    print("ESPERIMENTO CON DIVISIONE DEL DATASET MANTENENDO LA STESSA DISTRIBUZIONE DELLE LABEL")
+    print("\n \n ESPERIMENTO CON DIVISIONE DEL DATASET MANTENENDO LA STESSA DISTRIBUZIONE DELLE LABEL")
 
     # Vengono contate le occorrenze dei CPV, sui CIG che contengono il testo
     cpv_occurences = new_df.CPV.value_counts()
@@ -509,10 +510,11 @@ if __name__ == '__main__':
     # Mantengo nel dataframe i CIG che hanno più di una occorrenza
     df_without_one = new_df[~new_df.CPV.isin(to_remove)]
 
-    label_list = df_without_one.CPV.values.tolist()
+    label_list = df_without_one.CPV
+    new_df = df_without_one.drop(columns='CPV')
 
     # Divido il dataframe mantenendo la stessa distrubuzione delle label nel train e test set
-    train, test = train_test_split(df_without_one, test_size=0.3, stratify=label_list)
+    train, test, y_train, y_test = train_test_split(df_without_one, label_list, test_size=0.3, stratify=label_list)
 
     # Dal train e dal test estraggo i token per ogni cig, i bigrammi, il dizionario e la bow
     train_bigram, train_dictionary, train_corpus = create_dictionary_and_corpus(train)
@@ -609,14 +611,21 @@ if __name__ == '__main__':
     X_test = np.array(test_vecs)
 
     y_train = np.array(train.CPV.values.tolist())
-    y_test = np.array(test.CPV.values.tolist())
+    y_test = np.array(y_test)
+
+    print("Estrazione feature dalla bow...")
+    start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
 
     # Estraggo le feature anche dalla bow
     X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)
 
+    end_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
+    print("FEATURE ESTRATTE DALLA BOW IN:", ((end_time - start_time).total_seconds() / 60),
+          "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
+
     # Scalo le feature per entrambi gli esperimenti
-    X_train, X_test = feature_scaler(X_train, X_test)
-    X_train_bow, X_test_bow = feature_scaler(X_train_bow, X_test_bow)
+    # X_train, X_test = feature_scaler(X_train, X_test)
+    # X_train_bow, X_test_bow = feature_scaler(X_train_bow, X_test_bow)
 
 
     # SUPPORT VECTOR MACHINE
@@ -626,7 +635,7 @@ if __name__ == '__main__':
     # TRAIN
 
     # Creo un modello per la SVM utilizzando l'implementazione svc
-    svc = svm.SVC(probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
+    svc = svm.SVC()  # probability=True, permette di calcolare le probabilità. Cosa che svm non fa normalmente
     # Addestro il modello utilizzando il training set
     svc.fit(X_train, y_train)
 
@@ -654,7 +663,7 @@ if __name__ == '__main__':
     # TRAIN
 
     # Creo un modello per la SVM utilizzando l'implementazione svc
-    svc = svm.SVC(probability=True)  # Probability, permette di calcolare le probabilità. Cosa che svm non fa normalmente
+    svc = svm.SVC()  # probability=True, permette di calcolare le probabilità. Cosa che svm non fa normalmente
     # Addestro il modello utilizzando il training set
     svc.fit(X_train_bow, y_train)
 
@@ -676,12 +685,6 @@ if __name__ == '__main__':
 
     # Model Accuracy: how often is the classifier correct?
     print("Support vector machine accuracy (bow):", metrics.accuracy_score(y_test, y_pred_svc_bow))
-
-    # Model Precision: what percentage of positive tuples are labeled as such?
-    # print("Precision:", metrics.precision_score(y_test, y_pred, average='macro'))
-
-    # Model Recall: what percentage of positive tuples are labelled as such?
-    # print("Recall:", metrics.recall_score(y_test, y_pred, average='macro'))
 
     # ***********************************************************************************+
 
