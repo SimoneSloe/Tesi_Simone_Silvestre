@@ -331,11 +331,87 @@ def svc_predict(test_feature, svc_clf):
     return y_pred
 
 
+def svm_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label, test_label):
+
+    # FEATURE VECTOR DA TOPIC MODEL
+
+    # Addestro la SVM sulle feature estratte dal topic model
+    trained_svc_tm = training_svc(train_tm_feat, train_label)
+    # Il modello prevede la risposta per il test set
+    y_pred_svc_tm = svc_predict(test_tm_feat, trained_svc_tm)
+
+    # FEATURE VECTOR DALLA BOW
+
+    # Addestro la SVM sulle feature estratte dalla bow
+    trained_svc_bow = training_svc(train_bow_feat, train_label)
+    # Il modello prevede la risposta per il test set
+    y_pred_svc_bow = svc_predict(test_bow_feat, trained_svc_bow)
+
+    return y_pred_svc_tm, y_pred_svc_bow
+
+
+# Funzione che permette di addestrare una Random Forest per la classificazione
+def training_rf(train_feature, train_label):
+    # Creo un modello per RF
+    rf = RandomForestClassifier()  # VEDERE SE RIMANE "svc" SOTTOLINEATO
+    # Addestro il modello utilizzando il training set
+    rf.fit(train_feature, train_label)
+    return rf
+
+# Funzione che permette di effettuare predizioni con la RF addestrata
+def rf_predict(test_feature, rf_clf):
+    y_pred = rf_clf.predict(test_feature)
+    return y_pred
+
+# Funziona che crea un classificatore ed effettua delle predizioni
+def rf_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label, test_label):
+
+    # FEATURE VECTOR DA TOPIC MODEL
+
+    # Addestro la SVM sulle feature estratte dal topic model
+    trained_rf_tm = training_rf(train_tm_feat, train_label)
+    # Il modello prevede la risposta per il test set
+    y_pred_rf_tm = rf_predict(test_tm_feat, trained_rf_tm)
+
+    # FEATURE VECTOR DALLA BOW
+
+    # Addestro la SVM sulle feature estratte dalla bow
+    trained_rf_bow = training_rf(train_bow_feat, train_label)
+    # Il modello prevede la risposta per il test set
+    y_pred_rf_bow = rf_predict(test_bow_feat, trained_rf_bow)
+
+    return y_pred_rf_tm, y_pred_rf_bow
+
+# Funzione che calcola l'accuracy tenendo conto delle divisioni dei CPV
+def new_accuracy(test_labels, pred_labels):
+    num_samples = len(test_labels)
+    matches = 0
+
+    for i in range(len(test_labels)):
+        # Se il cpv predetto è della stessa divisione del cpv di test
+        if pred_labels[i][:2] == test_labels[i][:2]:
+            # Lo considero corretto
+            matches += 1
+
+    acc = matches / num_samples
+
+    return acc
+
+
 # *************************** MAIN ***************************
 
 if __name__ == '__main__':
     # --------------------- PRIMO ESPERIMENTO ---------------------
+
     print(" ESPERIMENTO CON DIVISIONE SEMPLICE DEL DATASET")
+
+    cpv_division = ['03000000-0', '09000000-0', '14000000-0', '15000000-0', '16000000-0', '18000000-0', '19000000-0',
+                    '22000000-0', '24000000-0', '30000000-0', '31000000-0', '32000000-0', '33000000-0', '34000000-0',
+                    '35000000-0', '37000000-0', '38000000-0', '39000000-0', '41000000-0', '42000000-0', '43000000-0',
+                    '44000000-0', '45000000-0', '48000000-0', '50000000-0', '51000000-0', '55000000-0', '60000000-0',
+                    '63000000-0', '64000000-0', '65000000-0', '66000000-0', '70000000-0', '71000000-0', '72000000-0',
+                    '73000000-0', '75000000-0', '76000000-0', '77000000-0', '79000000-0', '80000000-0', '85000000-0',
+                    '90000000-0', '92000000-0', '98000000-0']
 
     # Leggo il csv contenente i dati e creo un dataframe
     data_df = pd.read_csv('Dataset/gare-empulia-cpv.csv')
@@ -346,7 +422,7 @@ if __name__ == '__main__':
     cigs_list = data_df.CIG.values.tolist()
 
     # Assegno a una variabile il percorso passato dal terminale
-    data_folder = sys.argv[2]        # (1) "D:/Marilisa/Tesi/Dataset/process_bandi_cpv/udpipe",  (2) "D:/PycharmProject/pythonproject/provaset"
+    data_folder = sys.argv[1]        # (1) "D:/Marilisa/Tesi/Dataset/process_bandi_cpv/udpipe",  (2) "D:/PycharmProject/pythonproject/provaset"
 
     # Creo un dict che avrà come chiave il CIG, e come valore una lista che conterrà i token rispettivi
     cig_token_dictionary = create_token_list(cigs_list, data_folder)
@@ -358,24 +434,16 @@ if __name__ == '__main__':
     # Dal dataframe estraggo il CPV corrispondente al cig e ne creo un altra Series
     df_labels = cpv_extracter_from_csv()
 
-    # Lista che conterrà i cpv trasformati nella propria divisione
-    transformed_df_labels = []
+    s3 = pd.Series(df_labels, name='CPV')
 
-    cpv_division = ['03000000-0', '09000000-0', '14000000-0', '15000000-0', '16000000-0', '18000000-0', '19000000-0',
-                    '22000000-0', '24000000-0', '30000000-0', '31000000-0', '32000000-0', '33000000-0', '34000000-0',
-                    '35000000-0', '37000000-0', '38000000-0', '39000000-0', '41000000-0', '42000000-0', '43000000-0',
-                    '44000000-0', '45000000-0', '48000000-0', '50000000-0', '51000000-0', '55000000-0', '60000000-0',
-                    '63000000-0', '64000000-0', '65000000-0', '66000000-0', '70000000-0', '71000000-0', '72000000-0',
-                    '73000000-0', '75000000-0', '76000000-0', '77000000-0', '79000000-0', '80000000-0', '85000000-0',
-                    '90000000-0', '92000000-0', '98000000-0']
+    # Lista che conterrà i cpv trasformati nella rispettiva divisione
+    transformed_df_labels = []
 
     for i in range(len(df_labels)):
         for j in range(len(cpv_division)):
             if df_labels[i][:2] == cpv_division[j][:2]:
                 transformed_df_labels.append(cpv_division[j])
                 break
-
-    s3 = pd.Series(df_labels, name='CPV')
 
     s3_transformed = pd.Series(transformed_df_labels, name='CPV_T')
 
@@ -408,6 +476,9 @@ if __name__ == '__main__':
     y_train = np.array(train.CPV.values.tolist())
     y_test = np.array(test.CPV.values.tolist())
 
+    y_train_tr = np.array(train.CPV_T.values.tolist())
+    y_test_tr = np.array(test.CPV_T.values.tolist())
+
     print("Estrazione feature dalla bow...\n")
     # Estraggo le feature anche dalla bow
     X_train_bow, X_test_bow = feature_extraction_bow(train_bigram, test_bigram)  # (train.TOKEN_CIG, test.TOKEN_CIG)
@@ -416,127 +487,51 @@ if __name__ == '__main__':
     # X_train, X_test = feature_scaler(X_train, X_test)
     # X_train_bow, X_test_bow = feature_scaler(X_train_bow, X_test_bow)
 
+    print("Esperimento classificazione con CPV trasformate nella rispettiva divisione\n")
+
     # SUPPORT VECTOR MACHINE
 
-    def svm_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label, test_label):
+    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr)
 
-        # FEATURE VECTOR DA TOPIC MODEL
+    accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_svm_tm)
+    print("Support vector machine accuracy (topic model):", accuracy_tm)
 
-        # Addestro la SVM sulle feature estratte dal topic model
-        trained_svc_tm = training_svc(train_tm_feat, train_label)
-        # Il modello prevede la risposta per il test set
-        y_pred_svc = svc_predict(test_tm_feat, trained_svc_tm)
-
-        # VALUTAZIONE
-        accuracy_tm = metrics.accuracy_score(test_label, y_pred_svc)
-        print("Support vector machine accuracy (topic model):", accuracy_tm)
-
-        # FEATURE VECTOR DALLA BOW
-
-        # Addestro la SVM sulle feature estratte dalla bow
-        trained_svc_bow = training_svc(train_bow_feat, train_label)
-        # Il modello prevede la risposta per il test set
-        y_pred_svc_bow = svc_predict(test_bow_feat, trained_svc_bow)
-
-        # VALUTAZIONE
-        accuracy_bow = metrics.accuracy_score(test_label, y_pred_svc_bow)
-        print("Support vector machine accuracy (bow):", accuracy_bow)
-
-    svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test)
-
-    sys.exit()
-
-    # # FEATURE VECTOR DA TOPIC MODEL
-    #
-    # # Addestro la SVM sulle feature estratte dal topic model
-    # trained_svc_tm = training_svc(X_train_tm, y_train)
-    # # Il modello prevede la risposta per il test set
-    # y_pred_svc = svc_predict(X_test_tm, trained_svc_tm)
-    #
-    # i = 0
-    # print("\n SVC PRIMO TOPIC_MODEL:")
-    # while i < 1:
-    #     print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc[i])
-    #     i += 1
-    #
-    # # VALUTAZIONE
-    # accuracy_tm = metrics.accuracy_score(y_test, y_pred_svc)
-    # print("Support vector machine accuracy (topic model):", accuracy_tm)
-    #
-    # sys.exit()
-    #
-    # # FEATURE VECTOR DALLA BOW
-    #
-    # # Addestro la SVM sulle feature estratte dalla bow
-    # trained_svc_bow = training_svc(X_train_bow, y_train)
-    # # Il modello prevede la risposta per il test set
-    # y_pred_svc_bow = svc_predict(X_test, trained_svc_bow)
-    #
-    # i = 0
-    # print("\n SVC PRIMO BOW:")
-    # while i < 5:
-    #     print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:", y_pred_svc_bow[i])
-    #     i += 1
-    #
-    # # VALUTAZIONE
-    # accuracy_bow = metrics.accuracy_score(y_test, y_pred_svc_bow)
-    # print("Support vector machine accuracy (topic model):", accuracy_bow)
-
-    # ========================================================
+    accuracy_bow = metrics.accuracy_score(y_test_tr, y_pred_svm_bow)
+    print("Support vector machine accuracy (bow):", accuracy_tm)
 
     # RANDOM FOREST
 
-    # FEATURE VECTOR DA TOPIC MODEL
+    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr)
 
-    # TRAIN
+    accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_rf_tm)
+    print("Random forest (topic model):", accuracy_tm)
 
-    # Creo un modello per RF
-    rf = RandomForestClassifier()
+    accuracy_bow = metrics.accuracy_score(y_test_tr, y_pred_rf_bow)
+    print("Random forest accuracy (bow):", accuracy_tm)
 
-    # Addestro il classificatore con i dati di train
-    rf.fit(X_train, y_train)
+    print("\n Esperimento classificazione con modifica alla valutazione dell'accuracy\n")
 
-    # TEST
+    # SUPPORT VECTOR MACHINE
 
-    y_pred_rf = rf.predict(X_test)
+    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test)
 
-    i = 0
-    print("\n RF PRIMO TOPIC_MODEL:")
-    while i < 5:
-        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
-              y_pred_rf[i])
-        i += 1
+    accuracy_tm = new_accuracy(y_test, y_pred_svm_tm)
+    print("Support vector machine accuracy (topic model):", accuracy_tm)
 
-    # VALUTAZIONE
+    accuracy_bow = new_accuracy(y_test, y_pred_svm_bow)
+    print("Support vector machine accuracy (bow):", accuracy_tm)
 
-    print("Random forest accuracy (topicmodel):", metrics.accuracy_score(y_test, y_pred_rf))
+    # RANDOM FOREST
 
-    # FEATURE VECTOR DALLA BOW
+    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test)
 
-    # TRAIN
+    accuracy_tm = new_accuracy(y_test, y_pred_rf_tm)
+    print("Random forest (topic model):", accuracy_tm)
 
-    # Creo un modello per RF
-    rf = RandomForestClassifier()
+    accuracy_bow = new_accuracy(y_test, y_pred_rf_bow)
+    print("Random forest accuracy (bow):", accuracy_tm)
 
-    # Addestro il classificatore con i dati di train
-    rf.fit(X_train_bow, y_train)
-
-    # TEST
-
-    y_pred_rf_bow = rf.predict(X_test_bow)
-
-    i = 0
-    print("\n RF PRIMO BOW:")
-    while i < 5:
-        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", test.CPV.values.tolist()[i], " -> PREDICTED CPV:",
-              y_pred_rf_bow[i])
-        i += 1
-
-    # VALUTAZIONE
-
-    print("Random forest accuracy (bow):", metrics.accuracy_score(y_test, y_pred_rf_bow))
-
-    # ______________________________________________________________________________________
+    sys.exit()
 
     # --------------------- SECONDO ESPERIMENTO ---------------------
 
@@ -544,10 +539,6 @@ if __name__ == '__main__':
 
     # Vengono contate le occorrenze dei CPV, sui CIG che contengono il testo
     cpv_occurences = new_df.CPV.value_counts()
-    count = 0
-    for i in range(len(cpv_occurences)):
-        count += 1
-    print("CPV primo esperimento:", count)
 
     # Seleziono i CPV che hanno un occorrenza < 2
     to_remove = cpv_occurences[cpv_occurences < 2].index
@@ -559,230 +550,87 @@ if __name__ == '__main__':
     df_without_one = df_without_one.drop(columns='CPV')
 
     # Divido il dataframe mantenendo la stessa distrubuzione delle label nel train e test set
-    train, test, y_train, y_test = train_test_split(df_without_one, label_list, test_size=0.3, stratify=label_list)
+    train, test = train_test_split(df_without_one, test_size=0.3, stratify=label_list)
 
     # Dal train e dal test estraggo i token per ogni cig, i bigrammi, il dizionario e la bow
     train_bigram, train_dictionary, train_corpus = create_dictionary_and_corpus(train)
     test_bigram, test_dictionary, test_corpus = create_dictionary_and_corpus(test)
 
-    # ************************ Creo una cartella in cui salverò i dati di training
+    # Salvo i dati di training del topic model
+    save_data("2_Divisione_mantenendo_distribuzione", train_bigram, train_dictionary, train_corpus)
 
-    # Se la cartella non esiste la creo
-    if not os.path.isdir("Dictionary_Corpus_Bigrams"):
-        os.makedirs("Dictionary_Corpus_Bigrams")
-
-    # Cambio la cartella corrente
-    os.chdir('Dictionary_Corpus_Bigrams')
-
-    if not os.path.isdir("2_Divisione_mantenendo_distribuzione"):
-        os.makedirs("2_Divisione_mantenendo_distribuzione")
-
-    os.chdir("2_Divisione_mantenendo_distribuzione")
-
-    # Memorizzo il corpus, il dizionario e i bigrammi
-    with open('train_corpus.pkl', 'wb') as f:
-        pickle.dump(train_corpus, f)
-    with open('train_dictionary.pkl', 'wb') as f:
-        pickle.dump(train_dictionary, f)
-    with open('bigram_train.pkl', 'wb') as f:
-        pickle.dump(train_bigram, f)
-
-    # Esco dalla cartella
-    os.chdir("../")
-    os.chdir("../")
-
-    # ******************************************************
-
-    start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
-
+    # Addestro il topic model
     print("\n Training LDA Model...")
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        lda_train = gensim.models.ldamulticore.LdaMulticore(
-            corpus=train_corpus,
-            num_topics=20,
-            # è il numero di topic che vogliamo estrarre dal corpus, ottenuto tramite lo HDP (Hierarchical Dirichlet Process)
-            id2word=train_dictionary,
-            chunksize=100,  # definisce quanti documenti vengono processati allo stesso tempo
-            workers=7,  # Num. Processing Cores - 1
-            passes=50,
-            eval_every=1,  # un flag che permette di processare il corpus in chunks
-            per_word_topics=True)
+    lda_train = training_topic_model(train_corpus, train_dictionary, "2_Divisione_mantenendo_distribuzione")
 
-        end_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
-        print("LDA addestrato in", ((end_time - start_time).total_seconds() / 60),
-              "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
-
-        # ****************************** Creo una cartella in cui salverò il modello LDA
-
-        # Se la cartella non esiste la creo
-        if not os.path.isdir("Lda_model"):
-            os.makedirs("Lda_model")
-
-        # Cambio la cartella corrente
-        os.chdir('Lda_model')
-
-        if not os.path.isdir("2_Divisione_mantenendo_distribuzione"):
-            os.makedirs("2_Divisione_mantenendo_distribuzione")
-
-        os.chdir("2_Divisione_mantenendo_distribuzione")
-
-        lda_train.save('lda_train.model')
-
-        # Esco dalla cartella
-        os.chdir("../")
-        os.chdir("../")
-
-        # **************************************************
-
-        # Per ogni topic, mostrerà le parole che occorrono in quel topic con il relativo peso
-        # for idx, topic in lda_train.print_topics(-1):
-        # print('Topic: {} \nWords: {}'.format(idx, topic))
-
-        start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
-        coherence_model_lda = CoherenceModel(model=lda_train, texts=train_bigram, dictionary=train_dictionary,
-                                             coherence='c_v')
-        coherence_lda = coherence_model_lda.get_coherence()
-        print("Coherence:", coherence_lda)
-        end_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
-        print("COHERENCE CALCOLATA IN:", ((end_time - start_time).total_seconds() / 60),
-              "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
-
-    print("\n Estrazione feature dal topic model..")
+    print("\nEstrazione feature dal topic model..")
     # Applico il topic model addestrato al train e test set, estraendono i feature vectors che conterrano la distribuzione dei topic per ogni CIG
     train_vecs = feature_extraction_topic(train_bigram, train_corpus)
     test_vecs = feature_extraction_topic(test_bigram, test_corpus)
 
-    X_train = np.array(train_vecs)
-    X_test = np.array(test_vecs)
+    X_train_tm = np.array(train_vecs)
+    X_test_tm = np.array(test_vecs)
 
-    y_train = np.array(y_train)
-    y_test = np.array(y_test)
+    y_train = np.array(train.CPV.values.tolist())
+    y_test = np.array(test.CPV.values.tolist())
 
-    print("\n Estrazione feature dalla bow...")
-    start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
+    y_train_tr = np.array(train.CPV_T.values.tolist())
+    y_test_tr = np.array(test.CPV_T.values.tolist())
 
+    print("Estrazione feature dalla bow...\n")
     # Estraggo le feature anche dalla bow
-    X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)
-
-    end_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
-    print("FEATURE ESTRATTE DALLA BOW IN:", ((end_time - start_time).total_seconds() / 60),
-          "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
+    X_train_bow, X_test_bow = feature_extraction_bow(train_bigram, test_bigram)  # (train.TOKEN_CIG, test.TOKEN_CIG)
 
     # Scalo le feature per entrambi gli esperimenti
     # X_train, X_test = feature_scaler(X_train, X_test)
     # X_train_bow, X_test_bow = feature_scaler(X_train_bow, X_test_bow)
 
+    print("Esperimento classificazione con CPV trasformate nella rispettiva divisione\n")
 
     # SUPPORT VECTOR MACHINE
 
-    # FEATURE VECTOR DA TOPIC MODEL
+    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr,
+                                                   y_test_tr)
 
-    # TRAIN
+    accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_svm_tm)
+    print("Support vector machine accuracy (topic model):", accuracy_tm)
 
-    # Creo un modello per la SVM utilizzando l'implementazione svc
-    svc = svm.SVC()  # probability=True, permette di calcolare le probabilità. Cosa che svm non fa normalmente
-    # Addestro il modello utilizzando il training set
-    svc.fit(X_train, y_train)
-
-    # TEST
-
-    # Il modello prevede la risposta per il test set
-    y_pred_svc = svc.predict(X_test)
-
-    i = 0
-    print("\n SVC SECONDO TOPIC_MODEL:")
-    while i < 5:
-        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", y_test[i], " -> PREDICTED CPV:", y_pred_svc[i])
-        i += 1
-
-    # Calcola la distr. di probabilità dei CPV per ogni CIG del test set
-    # prova = svc.predict_proba(test_vecs)
-
-    # VALUTAZIONE
-
-    # Model Accuracy: how often is the classifier correct?
-    print("Support vector machine accuracy (topic model):", metrics.accuracy_score(y_test, y_pred_svc))
-
-    # FEATURE VECTOR DALLA BOW
-
-    # TRAIN
-
-    # Creo un modello per la SVM utilizzando l'implementazione svc
-    svc = svm.SVC()  # probability=True, permette di calcolare le probabilità. Cosa che svm non fa normalmente
-    # Addestro il modello utilizzando il training set
-    svc.fit(X_train_bow, y_train)
-
-    # TEST
-
-    # Il modello prevede la risposta per il test set
-    y_pred_svc_bow = svc.predict(X_test_bow)
-
-    i = 0
-    print("\n SVC SECONDO BOW:")
-    while i < 5:
-        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", y_test[i], " -> PREDICTED CPV:", y_pred_svc_bow[i])
-        i += 1
-
-    # Calcola la distr. di probabilità dei CPV per ogni CIG del test set
-    # prova = svc.predict_proba(test_vecs)
-
-    # VALUTAZIONE
-
-    # Model Accuracy: how often is the classifier correct?
-    print("Support vector machine accuracy (bow):", metrics.accuracy_score(y_test, y_pred_svc_bow))
-
-    # ***********************************************************************************+
+    accuracy_bow = metrics.accuracy_score(y_test_tr, y_pred_svm_bow)
+    print("Support vector machine accuracy (bow):", accuracy_tm)
 
     # RANDOM FOREST
 
-    # FEATURE VECTOR DA TOPIC MODEL
+    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr)
 
-    # TRAIN
+    accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_rf_tm)
+    print("Random forest (topic model):", accuracy_tm)
 
-    # Creo un modello per RF
-    rf = RandomForestClassifier()
+    accuracy_bow = metrics.accuracy_score(y_test_tr, y_pred_rf_bow)
+    print("Random forest accuracy (bow):", accuracy_tm)
 
-    # Addestro il classificatore con i dati di train
-    rf.fit(X_train, y_train)
+    print("\n Esperimento classificazione con modifica alla valutazione dell'accuracy\n")
 
-    # TEST
+    # SUPPORT VECTOR MACHINE
 
-    y_pred_rf = rf.predict(X_test)
+    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test)
 
-    i = 0
-    print("\n RF SECONDO TOPIC_MODEL:")
-    while i < 5:
-        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", y_test[i], " -> PREDICTED CPV:",
-              y_pred_rf[i])
-        i += 1
+    accuracy_tm = new_accuracy(y_test, y_pred_svm_tm)
+    print("Support vector machine accuracy (topic model):", accuracy_tm)
 
-    # VALUTAZIONE
+    accuracy_bow = new_accuracy(y_test, y_pred_svm_bow)
+    print("Support vector machine accuracy (bow):", accuracy_tm)
 
-    print("Random forest accuracy (topicmodel):", metrics.accuracy_score(y_test, y_pred_rf))
+    # RANDOM FOREST
 
-    # FEATURE VECTOR DALLA BOW
+    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test)
 
-    # TRAIN
+    accuracy_tm = new_accuracy(y_test, y_pred_rf_tm)
+    print("Random forest (topic model):", accuracy_tm)
 
-    # Creo un modello per RF
-    rf = RandomForestClassifier()
+    accuracy_bow = new_accuracy(y_test, y_pred_rf_bow)
+    print("Random forest accuracy (bow):", accuracy_tm)
 
-    # Addestro il classificatore con i dati di train
-    rf.fit(X_train_bow, y_train)
 
-    # TEST
 
-    y_pred_rf_bow = rf.predict(X_test_bow)
 
-    i = 0
-    print("\n RF SECONDO BOW:")
-    while i < 5:
-        print("CIG:", test.CIG.values.tolist()[i], "-> CPV:", y_test[i], " -> PREDICTED CPV:",
-              y_pred_rf_bow[i])
-        i += 1
-
-    # VALUTAZIONE
-
-    print("Random forest accuracy (bow):", metrics.accuracy_score(y_test, y_pred_rf_bow))
 
