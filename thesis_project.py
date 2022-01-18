@@ -34,8 +34,6 @@ def create_token_list(cig_list, folder_path):
     # Per ogni file all'interno della cartella
     for file in folder_files:
 
-        start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
-
         # Prendo il path del file
         file_path = os.path.relpath(file)
         # Controllo se il file ha l'estensione ".gz"
@@ -45,10 +43,6 @@ def create_token_list(cig_list, folder_path):
                 print("Parsing", file, "...")
                 # Analizzo i token all'interno del file corrente
                 cig_d = parse_token_file(cig_list, cig_dict, unzip_file)
-
-                end_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
-                print("File:", file, "parsed in", ((end_time - start_time).total_seconds() / 60),
-                      "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
 
     return cig_d
 
@@ -260,7 +254,6 @@ def save_topic_model(folder_name, topic_model):
 
 # Funzione che permette di addestrare il topic model
 def training_topic_model(train_corp, train_dict, folder_name):
-    start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         lda_train = gensim.models.ldamulticore.LdaMulticore(
@@ -273,18 +266,12 @@ def training_topic_model(train_corp, train_dict, folder_name):
             eval_every=1,  # un flag che permette di processare il corpus in chunks
             per_word_topics=True)
 
-        end_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
-        print("LDA addestrato in", ((end_time - start_time).total_seconds() / 60), "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
-
         save_topic_model(folder_name, lda_train)
 
-        start_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
         coherence_model_lda = CoherenceModel(model=lda_train, texts=train_bigram, dictionary=train_dictionary,
                                                  coherence='c_v')
         coherence_lda = coherence_model_lda.get_coherence()
         print("Coherence:", coherence_lda)
-        end_time = datetime.datetime.now()  # DA RIMUOVERE, SOLO PER PROVE
-        print("COHERENCE CALCOLATA IN:", ((end_time - start_time).total_seconds() / 60), "minutes.")  # DA RIMUOVERE, SOLO PER PROVE
 
         return lda_train
 
@@ -325,6 +312,7 @@ def training_svc(train_feature, train_label):
     svc.fit(train_feature, train_label)
     return svc
 
+
 # Funzione che permette di effettuare predizioni con la SVM addestrata
 def svc_predict(test_feature, svc_clf):
     y_pred = svc_clf.predict(test_feature)
@@ -358,10 +346,12 @@ def training_rf(train_feature, train_label):
     rf.fit(train_feature, train_label)
     return rf
 
+
 # Funzione che permette di effettuare predizioni con la RF addestrata
 def rf_predict(test_feature, rf_clf):
     y_pred = rf_clf.predict(test_feature)
     return y_pred
+
 
 # Funziona che crea un classificatore ed effettua delle predizioni
 def rf_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label, test_label):
@@ -382,6 +372,7 @@ def rf_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, tr
 
     return y_pred_rf_tm, y_pred_rf_bow
 
+
 # Funzione che calcola l'accuracy tenendo conto delle divisioni dei CPV
 def new_accuracy(test_labels, pred_labels):
     num_samples = len(test_labels)
@@ -401,9 +392,8 @@ def new_accuracy(test_labels, pred_labels):
 # *************************** MAIN ***************************
 
 if __name__ == '__main__':
-    # --------------------- PRIMO ESPERIMENTO ---------------------
 
-    print(" ESPERIMENTO CON DIVISIONE SEMPLICE DEL DATASET")
+    # --------------------- PRIMO ESPERIMENTO ---------------------
 
     cpv_division = ['03000000-0', '09000000-0', '14000000-0', '15000000-0', '16000000-0', '18000000-0', '19000000-0',
                     '22000000-0', '24000000-0', '30000000-0', '31000000-0', '32000000-0', '33000000-0', '34000000-0',
@@ -426,6 +416,8 @@ if __name__ == '__main__':
 
     # Creo un dict che avrà come chiave il CIG, e come valore una lista che conterrà i token rispettivi
     cig_token_dictionary = create_token_list(cigs_list, data_folder)
+
+    print("\nESPERIMENTO CON DIVISIONE SEMPLICE DEL DATASET")
 
     # Estraggo dal dict i cig, e i rispettivi token e ne creo delle Series per un nuovo dataframe
     s1 = pd.Series(cig_token_dictionary.keys(), name='CIG')
@@ -452,7 +444,7 @@ if __name__ == '__main__':
     new_df = new_df.dropna()
 
     # Divisione semplice del nuovo dataframe in train e test
-    train, test = train_test_split(new_df, test_size=0.2, random_state=0)
+    train, test = train_test_split(new_df, test_size=0.2)
 
     # Dal train e dal test estraggo i token per ogni cig, i bigrammi, il dizionario e la bow
     train_bigram, train_dictionary, train_corpus = create_dictionary_and_corpus(train)
@@ -481,7 +473,7 @@ if __name__ == '__main__':
 
     print("Estrazione feature dalla bow...\n")
     # Estraggo le feature anche dalla bow
-    X_train_bow, X_test_bow = feature_extraction_bow(train_bigram, test_bigram)  # (train.TOKEN_CIG, test.TOKEN_CIG)
+    X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)  # (train_bigram, test_bigram)
 
     # Scalo le feature per entrambi gli esperimenti
     # X_train, X_test = feature_scaler(X_train, X_test)
@@ -497,7 +489,7 @@ if __name__ == '__main__':
     print("Support vector machine accuracy (topic model):", accuracy_tm)
 
     accuracy_bow = metrics.accuracy_score(y_test_tr, y_pred_svm_bow)
-    print("Support vector machine accuracy (bow):", accuracy_tm)
+    print("Support vector machine accuracy (bow):", accuracy_bow)
 
     # RANDOM FOREST
 
@@ -507,7 +499,7 @@ if __name__ == '__main__':
     print("Random forest (topic model):", accuracy_tm)
 
     accuracy_bow = metrics.accuracy_score(y_test_tr, y_pred_rf_bow)
-    print("Random forest accuracy (bow):", accuracy_tm)
+    print("Random forest accuracy (bow):", accuracy_bow)
 
     print("\n Esperimento classificazione con modifica alla valutazione dell'accuracy\n")
 
@@ -519,7 +511,7 @@ if __name__ == '__main__':
     print("Support vector machine accuracy (topic model):", accuracy_tm)
 
     accuracy_bow = new_accuracy(y_test, y_pred_svm_bow)
-    print("Support vector machine accuracy (bow):", accuracy_tm)
+    print("Support vector machine accuracy (bow):", accuracy_bow)
 
     # RANDOM FOREST
 
@@ -529,9 +521,7 @@ if __name__ == '__main__':
     print("Random forest (topic model):", accuracy_tm)
 
     accuracy_bow = new_accuracy(y_test, y_pred_rf_bow)
-    print("Random forest accuracy (bow):", accuracy_tm)
-
-    sys.exit()
+    print("Random forest accuracy (bow):", accuracy_bow)
 
     # --------------------- SECONDO ESPERIMENTO ---------------------
 
@@ -547,7 +537,6 @@ if __name__ == '__main__':
     df_without_one = new_df[~new_df.CPV.isin(to_remove)]
 
     label_list = df_without_one.CPV
-    df_without_one = df_without_one.drop(columns='CPV')
 
     # Divido il dataframe mantenendo la stessa distrubuzione delle label nel train e test set
     train, test = train_test_split(df_without_one, test_size=0.3, stratify=label_list)
@@ -579,13 +568,13 @@ if __name__ == '__main__':
 
     print("Estrazione feature dalla bow...\n")
     # Estraggo le feature anche dalla bow
-    X_train_bow, X_test_bow = feature_extraction_bow(train_bigram, test_bigram)  # (train.TOKEN_CIG, test.TOKEN_CIG)
+    X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)  # (train_bigram, test_bigram)
 
     # Scalo le feature per entrambi gli esperimenti
     # X_train, X_test = feature_scaler(X_train, X_test)
     # X_train_bow, X_test_bow = feature_scaler(X_train_bow, X_test_bow)
 
-    print("Esperimento classificazione con CPV trasformate nella rispettiva divisione\n")
+    print(" Esperimento classificazione con CPV trasformate nella rispettiva divisione\n")
 
     # SUPPORT VECTOR MACHINE
 
@@ -596,7 +585,7 @@ if __name__ == '__main__':
     print("Support vector machine accuracy (topic model):", accuracy_tm)
 
     accuracy_bow = metrics.accuracy_score(y_test_tr, y_pred_svm_bow)
-    print("Support vector machine accuracy (bow):", accuracy_tm)
+    print("Support vector machine accuracy (bow):", accuracy_bow)
 
     # RANDOM FOREST
 
@@ -606,7 +595,7 @@ if __name__ == '__main__':
     print("Random forest (topic model):", accuracy_tm)
 
     accuracy_bow = metrics.accuracy_score(y_test_tr, y_pred_rf_bow)
-    print("Random forest accuracy (bow):", accuracy_tm)
+    print("Random forest accuracy (bow):", accuracy_bow)
 
     print("\n Esperimento classificazione con modifica alla valutazione dell'accuracy\n")
 
@@ -618,7 +607,7 @@ if __name__ == '__main__':
     print("Support vector machine accuracy (topic model):", accuracy_tm)
 
     accuracy_bow = new_accuracy(y_test, y_pred_svm_bow)
-    print("Support vector machine accuracy (bow):", accuracy_tm)
+    print("Support vector machine accuracy (bow):", accuracy_bow)
 
     # RANDOM FOREST
 
@@ -628,7 +617,7 @@ if __name__ == '__main__':
     print("Random forest (topic model):", accuracy_tm)
 
     accuracy_bow = new_accuracy(y_test, y_pred_rf_bow)
-    print("Random forest accuracy (bow):", accuracy_tm)
+    print("Random forest accuracy (bow):", accuracy_bow)
 
 
 
