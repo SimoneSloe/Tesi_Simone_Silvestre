@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 import gzip
+import matplotlib.pyplot as plt
 import datetime
 import re
 import conllu
@@ -15,7 +16,7 @@ from gensim.models import CoherenceModel, TfidfModel
 from nltk.corpus import stopwords
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics import f1_score, confusion_matrix, precision_score, recall_score
+from sklearn.metrics import f1_score, confusion_matrix, precision_score, recall_score, ConfusionMatrixDisplay
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
@@ -320,14 +321,23 @@ def svc_predict(test_feature, svc_clf):
     return y_pred
 
 
-def svm_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label):
+def svm_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label, test_label, plot_name_tm, plot_name_bow):
 
     # FEATURE VECTOR DA TOPIC MODEL
-
     # Addestro la SVM sulle feature estratte dal topic model
     trained_svc_tm = training_svc(train_tm_feat, train_label)
+    # print(trained_svc_tm.classes_)
     # Il modello prevede la risposta per il test set
     y_pred_svc_tm = svc_predict(test_tm_feat, trained_svc_tm)
+
+    print("\nTopic model Confusion Matrix")
+    cm_svm_tm = confusion_matrix(test_label, y_pred_svc_tm)
+    cmp_tm = ConfusionMatrixDisplay(confusion_matrix=cm_svm_tm).plot()
+    plt.title(plot_name_tm)
+    plt.show()
+    # fig, ax = plt.subplots(figsize=(10, 10))
+    # ax.set_title(plot_name_tm)
+    # cmp_tm.plot(ax=ax)
 
     # FEATURE VECTOR DALLA BOW
 
@@ -335,6 +345,14 @@ def svm_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, t
     trained_svc_bow = training_svc(train_bow_feat, train_label)
     # Il modello prevede la risposta per il test set
     y_pred_svc_bow = svc_predict(test_bow_feat, trained_svc_bow)
+
+    print("BOW Confusion Matrix\n")
+    cm_svm_bow = confusion_matrix(test_label, y_pred_svc_bow)
+    cmp_bow = ConfusionMatrixDisplay(confusion_matrix=cm_svm_bow).plot()
+    plt.title(plot_name_bow)
+    plt.show()
+    # fig, ax = plt.subplots(figsize=(10, 10))
+    # cmp_bow.plot(ax=ax)
 
     return y_pred_svc_tm, y_pred_svc_bow
 
@@ -355,7 +373,7 @@ def rf_predict(test_feature, rf_clf):
 
 
 # Funziona che crea un classificatore ed effettua delle predizioni
-def rf_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label):
+def rf_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label, test_label, plot_name_tm, plot_name_bow):
 
     # FEATURE VECTOR DA TOPIC MODEL
 
@@ -364,12 +382,29 @@ def rf_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, tr
     # Il modello prevede la risposta per il test set
     y_pred_tm = rf_predict(test_tm_feat, trained_rf_tm)
 
+    print("Topic model Confusion Matrix\n")
+    cm_rf_tm = confusion_matrix(test_label, y_pred_tm)
+    cmp_tm = ConfusionMatrixDisplay(confusion_matrix=cm_rf_tm).plot()
+    plt.title("ciao")
+    plt.title(plot_name_tm)
+    plt.show()
+    # fig, ax = plt.subplots(figsize=(10, 10))
+    # cmp.plot(ax=ax)
+
     # FEATURE VECTOR DALLA BOW
 
     # Addestro la SVM sulle feature estratte dalla bow
     trained_rf_bow = training_rf(train_bow_feat, train_label)
     # Il modello prevede la risposta per il test set
     y_pred_bow = rf_predict(test_bow_feat, trained_rf_bow)
+
+    print("BOW Confusion Matrix\n")
+    cm_rf_bow = confusion_matrix(test_label, y_pred_bow)
+    cmp_bow = ConfusionMatrixDisplay(confusion_matrix=cm_rf_bow).plot()
+    plt.title(plot_name_bow)
+    plt.show()
+    # fig, ax = plt.subplots(figsize=(10, 10))
+    # cmp.plot(ax=ax)
 
     return y_pred_tm, y_pred_bow
 
@@ -413,7 +448,7 @@ if __name__ == '__main__':
     cigs_list = data_df.CIG.values.tolist()
 
     # Assegno a una variabile il percorso passato dal terminale
-    data_folder = sys.argv[1]
+    data_folder = sys.argv[2]
     # (1) "D:/Marilisa/Tesi/Dataset/process_bandi_cpv/udpipe",  (2) "D:/PycharmProject/pythonproject/provaset"
 
     # Creo un dict che avrà come chiave il CIG, e come valore una lista che conterrà i token rispettivi
@@ -486,7 +521,7 @@ if __name__ == '__main__':
 
     # SUPPORT VECTOR MACHINE
 
-    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr)
+    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr, "Primo_esperimento_SVM_CPV_Trasformate_Topic_Model", "Primo_esperimento_SVM_CPV_Trasformate_BOW")
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
@@ -496,7 +531,7 @@ if __name__ == '__main__':
 
     # RANDOM FOREST
 
-    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr)
+    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr, "Primo_esperimento_RF_CPV_Trasformate_Topic_Model", "Primo_esperimento_RF_CPV_Trasformate_BOW")
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
@@ -508,7 +543,7 @@ if __name__ == '__main__':
 
     # SUPPORT VECTOR MACHINE
 
-    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train)
+    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test, "Primo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model", "Primo_esperimento_SVM_CPV_Accuracy_modificata_BOW")
 
     accuracy_tm = new_accuracy(y_test, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
@@ -518,7 +553,7 @@ if __name__ == '__main__':
 
     # RANDOM FOREST
 
-    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train)
+    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test, "Primo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model", "Primo_esperimento_RF_CPV_Accuracy_modificata_BOW")
 
     accuracy_tm = new_accuracy(y_test, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
@@ -582,7 +617,7 @@ if __name__ == '__main__':
 
     # SUPPORT VECTOR MACHINE
 
-    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr)
+    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr, "Secondo_esperimento_SVM_CPV_Trasformate_Topic_Model", "Secondo_esperimento_SVM_CPV_Trasformate_BOW")
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
@@ -592,7 +627,7 @@ if __name__ == '__main__':
 
     # RANDOM FOREST
 
-    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr)
+    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr, "Secondo_esperimento_RF_CPV_Trasformate_Topic_Model", "Secondo_esperimento_RF_CPV_Trasformate_BOW")
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
@@ -604,7 +639,7 @@ if __name__ == '__main__':
 
     # SUPPORT VECTOR MACHINE
 
-    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train)
+    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test, "Secondo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model", "Secondo_esperimento_SVM_CPV_Accuracy_modificata_BOW")
 
     accuracy_tm = new_accuracy(y_test, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
@@ -614,7 +649,7 @@ if __name__ == '__main__':
 
     # RANDOM FOREST
 
-    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train)
+    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test, "Secondo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model", "Secondo_esperimento_RF_CPV_Accuracy_modificata_BOW")
 
     accuracy_tm = new_accuracy(y_test, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
