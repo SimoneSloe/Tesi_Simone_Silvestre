@@ -319,7 +319,7 @@ def svc_predict(test_feature, svc_clf):
     return y_pred
 
 
-def svm_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label, test_label):
+def svm_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label):
 
     # FEATURE VECTOR DA TOPIC MODEL
 
@@ -354,7 +354,7 @@ def rf_predict(test_feature, rf_clf):
 
 
 # Funziona che crea un classificatore ed effettua delle predizioni
-def rf_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label, test_label):
+def rf_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label):
 
     # FEATURE VECTOR DA TOPIC MODEL
 
@@ -412,7 +412,7 @@ if __name__ == '__main__':
     cigs_list = data_df.CIG.values.tolist()
 
     # Assegno a una variabile il percorso passato dal terminale
-    data_folder = sys.argv[1]        # (1) "D:/Marilisa/Tesi/Dataset/process_bandi_cpv/udpipe",  (2) "D:/PycharmProject/pythonproject/provaset"
+    data_folder = sys.argv[2]        # (1) "D:/Marilisa/Tesi/Dataset/process_bandi_cpv/udpipe",  (2) "D:/PycharmProject/pythonproject/provaset"
 
     # Creo un dict che avrà come chiave il CIG, e come valore una lista che conterrà i token rispettivi
     cig_token_dictionary = create_token_list(cigs_list, data_folder)
@@ -483,7 +483,7 @@ if __name__ == '__main__':
 
     # SUPPORT VECTOR MACHINE
 
-    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr)
+    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr)
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
@@ -493,7 +493,7 @@ if __name__ == '__main__':
 
     # RANDOM FOREST
 
-    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr)
+    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr)
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
@@ -505,7 +505,7 @@ if __name__ == '__main__':
 
     # SUPPORT VECTOR MACHINE
 
-    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test)
+    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train)
 
     accuracy_tm = new_accuracy(y_test, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
@@ -515,7 +515,7 @@ if __name__ == '__main__':
 
     # RANDOM FOREST
 
-    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test)
+    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train)
 
     accuracy_tm = new_accuracy(y_test, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
@@ -578,8 +578,7 @@ if __name__ == '__main__':
 
     # SUPPORT VECTOR MACHINE
 
-    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr,
-                                                   y_test_tr)
+    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr)
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
@@ -589,7 +588,7 @@ if __name__ == '__main__':
 
     # RANDOM FOREST
 
-    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr)
+    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr)
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
@@ -601,7 +600,7 @@ if __name__ == '__main__':
 
     # SUPPORT VECTOR MACHINE
 
-    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test)
+    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train)
 
     accuracy_tm = new_accuracy(y_test, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
@@ -611,7 +610,7 @@ if __name__ == '__main__':
 
     # RANDOM FOREST
 
-    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test)
+    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train)
 
     accuracy_tm = new_accuracy(y_test, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
