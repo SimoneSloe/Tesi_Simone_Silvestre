@@ -272,15 +272,13 @@ def training_topic_model(train_corp, train_dict, folder_name):
         coherence_lda = coherence_model_lda.get_coherence()
         print("Coherence:", coherence_lda)
 
-        return lda_train
-
 
 # Funzione che restituisce i feature vectors dal topic model che conterrano la distribuzione dei topic per ogni CIG
-def feature_extraction_topic(trained_lda, cig_bigram, corpus):
+def feature_extraction_topic(cig_bigram, corpus):
     vecs = []
     for index in range(len(cig_bigram)):
         # Ottengo la distribuzione dei topic per il dato CIG
-        top_topics = trained_lda.get_document_topics(corpus[i], minimum_probability=0.0)  # The key bit is using minimum_probability=0.0 in line 3. This ensures that we’ll capture the instances where a review is presented with 0% in some topics, and the representation for each review will add up to 100%.
+        top_topics = lda_train.get_document_topics(corpus[i], minimum_probability=0.0)  # The key bit is using minimum_probability=0.0 in line 3. This ensures that we’ll capture the instances where a review is presented with 0% in some topics, and the representation for each review will add up to 100%.
         topic_vec = [top_topics[index][1] for index in range(20)]
         vecs.append(topic_vec)
     return vecs
@@ -411,7 +409,7 @@ if __name__ == '__main__':
     cigs_list = data_df.CIG.values.tolist()
 
     # Assegno a una variabile il percorso passato dal terminale
-    data_folder = sys.argv[1]  # (1) "D:/Marilisa/Tesi/Dataset/process_bandi_cpv/udpipe",
+    data_folder = sys.argv[2]  # (1) "D:/Marilisa/Tesi/Dataset/process_bandi_cpv/udpipe",
     # (2) "D:/PycharmProject/pythonproject/provaset"
 
     # Creo un dict che avrà come chiave il CIG, e come valore una lista che conterrà i token rispettivi
@@ -455,13 +453,13 @@ if __name__ == '__main__':
 
     # Addestro il topic model
     print("\n Training LDA Model...")
-    lda_train = training_topic_model(train_corpus, train_dictionary, "1_Divisione_semplice_dataset")
+    training_topic_model(train_corpus, train_dictionary, "1_Divisione_semplice_dataset")
 
     print("\nEstrazione feature dal topic model..")
     # Applico il topic model addestrato al train e test set, estraendono i feature vectors che conterrano
     # la distribuzione dei topic per ogni CIG
-    train_vecs = feature_extraction_topic(lda_train, train_bigram, train_corpus)
-    test_vecs = feature_extraction_topic(lda_train, test_bigram, test_corpus)
+    train_vecs = feature_extraction_topic(train_bigram, train_corpus)
+    test_vecs = feature_extraction_topic(test_bigram, test_corpus)
 
     X_train_tm = np.array(train_vecs)
     X_test_tm = np.array(test_vecs)
