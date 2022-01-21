@@ -306,55 +306,114 @@ def feature_scaler(train_feature, test_feature):
     return train_feature_scaled, test_feature_scaled
 
 
+def mean_reciprocal_rank(test_feat, clf, test_la, mod):
+    # Invece di predirre una singola classe, il classificatore produce in questo la probabilità che ha un cig per ogni cpv
+    probs = clf.predict_proba(test_feat)
+    # Creo un ranking basato sullo score di confidenza
+    sorted_probs = np.argsort(probs, axis=1)
+    # Classi del classificatore
+    tr_cl = clf.classes_
+
+    mrr_mod = 0
+    rrs = []
+    rrs_mod = []
+    try_dict = {}
+    id_cl = 0
+
+    # Assegno un indice ad ogni classe nel classificatore
+    for cl in tr_cl:
+        try_dict[cl] = id_cl
+        id_cl += 1
+
+    keys = list(try_dict.keys())
+    values = list(try_dict.values())
+
+    # Per ogni elemento nelle label di test
+    for ix in range(len(test_la)):
+        # Per ogni elemento nelle chiavi del dict
+        for k_ix in range(len(keys)):
+            # Se la label fa parte dell'insieme delle label del classificatore
+            if keys[k_ix] == test_la[ix]:
+                # Per ogni elemento all'interno del ranking di confidenza delle label predette sul cig
+                for jx in range(len(sorted_probs[ix])):
+                    # Ne prendo l'indice nel ranking
+                    if sorted_probs[ix][jx] == values[k_ix]:
+                        # Ne calcolo il reciprocal rank
+                        rr = 1 / (jx + 1)
+                        rrs.append(rr)
+
+    rrs_sum = sum(rrs)
+    mrr = rrs_sum / len(test_la)
+
+    # E' un flag che serve nel caso in cui devo calcolare anche l'mrr tenendo conto delle sottocategorie(divisioni)
+    if mod:
+        # Per ogni elemento nelle label di test
+        for ix in range(len(test_la)):
+            ids = []
+            # Per ogni elemento nelle chiavi del dict
+            for k_ix in range(len(keys)):
+                # Se la label fa parte dell'insieme delle label del classificatore
+                if keys[k_ix][:2] == test_la[ix][:2]:
+                    # Per ogni elemento all'interno del ranking di confidenza delle label predette sul cig
+                    for jx in range(len(sorted_probs[ix])):
+                        # Ne prendo l'indice nel ranking
+                        if sorted_probs[ix][jx] == values[k_ix]:
+                            # Prendo gli indici dei cpv che fanno parte della stessa divisione
+                            ids.append(jx+1)
+            if ids:
+                # Prendo l'indice più in alto nel ranking tra i cpv della stessa divisione (ovvero con l'indice con valore più basso)
+                min_index = min(ids)
+                # Ne calcolo il reciprocal rank
+                rr = 1 / min_index
+                rrs_mod.append(rr)
+
+    rrs_mod_sum = sum(rrs_mod)
+    mrr_mod = rrs_mod_sum / len(test_la)
+
+    return mrr, mrr_mod
+
+
 # Funzione che permette di addestrare una Support Vector Machine per la classificazione
 def training_svc(train_feature, train_label):
     # Creo un modello per la SVM utilizzando l'implementazione svc
-    svc = svm.SVC()  # VEDERE SE RIMANE "svc" SOTTOLINEATO
+    svc = svm.SVC(probability=True)
     # Addestro il modello utilizzando il training set
     svc.fit(train_feature, train_label)
     return svc
 
 
 # Funzione che permette di effettuare predizioni con la SVM addestrata
-def svc_predict(test_feature, svc_clf):
+def svc_predict(test_feature, svc_clf, test_label, flag_mod):
     y_pred = svc_clf.predict(test_feature)
-    return y_pred
+
+    mrr_svc, mrr_mod_svc = mean_reciprocal_rank(test_feature, svc_clf, test_label, flag_mod)
+
+    return y_pred, mrr_svc, mrr_mod_svc
 
 
-def svm_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label, test_label, plot_name_tm, plot_name_bow):
+def svm_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_comb_feat, test_comb_feat, train_label, test_label, fl_mod):
 
     # FEATURE VECTOR DA TOPIC MODEL
     # Addestro la SVM sulle feature estratte dal topic model
     trained_svc_tm = training_svc(train_tm_feat, train_label)
-    # print(trained_svc_tm.classes_)
-    # Il modello prevede la risposta per il test set
-    y_pred_svc_tm = svc_predict(test_tm_feat, trained_svc_tm)
-
-    print("\nTopic model Confusion Matrix")
-    cm_svm_tm = confusion_matrix(test_label, y_pred_svc_tm)
-    cmp_tm = ConfusionMatrixDisplay(confusion_matrix=cm_svm_tm).plot()
-    plt.title(plot_name_tm)
-    plt.show()
-    # fig, ax = plt.subplots(figsize=(10, 10))
-    # ax.set_title(plot_name_tm)
-    # cmp_tm.plot(ax=ax)
+    # Il modello prevede la risposta per il test set e crea anche un ranking basato sullo score di confidenza e ne calcola il mean reciprocal rank
+    y_pred_svc_tm, mrr_svc_tm, mrr_mod_svc_tm = svc_predict(test_tm_feat, trained_svc_tm, test_label, fl_mod)
 
     # FEATURE VECTOR DALLA BOW
 
     # Addestro la SVM sulle feature estratte dalla bow
     trained_svc_bow = training_svc(train_bow_feat, train_label)
-    # Il modello prevede la risposta per il test set
-    y_pred_svc_bow = svc_predict(test_bow_feat, trained_svc_bow)
+    # Il modello prevede la risposta per il test set e crea anche un ranking basato sullo score di confidenza e ne calcola il mean reciprocal rank
+    y_pred_svc_bow, mrr_svc_bow, mrr_mod_svc_bow = svc_predict(test_bow_feat, trained_svc_bow, test_label, fl_mod)
 
-    print("BOW Confusion Matrix\n")
-    cm_svm_bow = confusion_matrix(test_label, y_pred_svc_bow)
-    cmp_bow = ConfusionMatrixDisplay(confusion_matrix=cm_svm_bow).plot()
-    plt.title(plot_name_bow)
-    plt.show()
-    # fig, ax = plt.subplots(figsize=(10, 10))
-    # cmp_bow.plot(ax=ax)
+    # FEATURE COMBINATE
 
-    return y_pred_svc_tm, y_pred_svc_bow
+    # Addestro la SVM sulle feature combinate
+    trained_svc_comb = training_svc(train_comb_feat, train_label)
+    # Il modello prevede la risposta per il test set e crea anche un ranking basato sullo score di confidenza e ne calcola il mean reciprocal rank
+    y_pred_svc_comb, mrr_svc_comb, mrr_mod_svc_comb = svc_predict(test_comb_feat, trained_svc_comb, test_label, fl_mod)
+
+    return y_pred_svc_tm, y_pred_svc_bow, y_pred_svc_comb, mrr_svc_tm, mrr_svc_bow, mrr_svc_comb, mrr_mod_svc_tm, mrr_mod_svc_bow, mrr_mod_svc_comb
 
 
 # Funzione che permette di addestrare una Random Forest per la classificazione
@@ -367,46 +426,73 @@ def training_rf(train_feature, train_label):
 
 
 # Funzione che permette di effettuare predizioni con la RF addestrata
-def rf_predict(test_feature, rf_clf):
+def rf_predict(test_feature, rf_clf, test_label, flag_mod):
     y_pred = rf_clf.predict(test_feature)
-    return y_pred
+
+    mrr_rf, mrr_mod_rf = mean_reciprocal_rank(test_feature, rf_clf, test_label, flag_mod)
+
+    return y_pred, mrr_rf, mrr_mod_rf
 
 
 # Funziona che crea un classificatore ed effettua delle predizioni
-def rf_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_label, test_label, plot_name_tm, plot_name_bow):
+def rf_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, train_comb_feat, test_comb_feat, train_label, test_label, fl_mod):
 
     # FEATURE VECTOR DA TOPIC MODEL
 
     # Addestro la SVM sulle feature estratte dal topic model
     trained_rf_tm = training_rf(train_tm_feat, train_label)
     # Il modello prevede la risposta per il test set
-    y_pred_tm = rf_predict(test_tm_feat, trained_rf_tm)
-
-    print("Topic model Confusion Matrix\n")
-    cm_rf_tm = confusion_matrix(test_label, y_pred_tm)
-    cmp_tm = ConfusionMatrixDisplay(confusion_matrix=cm_rf_tm).plot()
-    plt.title("ciao")
-    plt.title(plot_name_tm)
-    plt.show()
-    # fig, ax = plt.subplots(figsize=(10, 10))
-    # cmp.plot(ax=ax)
+    y_pred_tm, mrr_tm, mrr_mod_tm = rf_predict(test_tm_feat, trained_rf_tm, test_label, fl_mod)
 
     # FEATURE VECTOR DALLA BOW
 
     # Addestro la SVM sulle feature estratte dalla bow
     trained_rf_bow = training_rf(train_bow_feat, train_label)
     # Il modello prevede la risposta per il test set
-    y_pred_bow = rf_predict(test_bow_feat, trained_rf_bow)
+    y_pred_bow, mrr_bow, mrr_mod_bow = rf_predict(test_bow_feat, trained_rf_bow, test_label, fl_mod)
 
-    print("BOW Confusion Matrix\n")
-    cm_rf_bow = confusion_matrix(test_label, y_pred_bow)
-    cmp_bow = ConfusionMatrixDisplay(confusion_matrix=cm_rf_bow).plot()
-    plt.title(plot_name_bow)
+    # FEATURE COMBINATE
+
+    # Addestro la SVM sulle feature combinate
+    trained_rf_comb = training_svc(train_comb_feat, train_label)
+    # Il modello prevede la risposta per il test set
+    y_pred_comb, mrr_comb, mrr_mod_comb = rf_predict(test_comb_feat, trained_rf_comb, test_label, fl_mod)
+
+    return y_pred_tm, y_pred_bow, y_pred_comb, mrr_tm, mrr_bow, mrr_comb, mrr_mod_tm, mrr_mod_bow, mrr_mod_comb
+
+
+def cpv_tr_confusion_matrix(test_label, pred_label, plot_name):
+    matrix = confusion_matrix(test_label, pred_label)
+    cmp = ConfusionMatrixDisplay(confusion_matrix=matrix)
+    fig, ax = plt.subplots(figsize=(100, 100))
+    cmp.plot(ax=ax)
+    plt.title(plot_name)
     plt.show()
-    # fig, ax = plt.subplots(figsize=(10, 10))
-    # cmp.plot(ax=ax)
 
-    return y_pred_tm, y_pred_bow
+
+def my_confusion_matrix(unique_test_cpv, test_label, pred_label, plot_name):
+    classes = len(unique_test_cpv)
+    matrix = np.zeros([classes, classes], dtype=int)
+    for pred in range(len(pred_label)):
+        if pred_label[pred][:2] == test_label[pred][:2]:
+            for cl in range(classes):
+                if unique_test_cpv[cl][:2] == pred_label[pred][:2]:
+                    matrix[cl][cl] += 1
+        else:
+            for cl in range(classes):
+                if unique_test_cpv[cl][:2] == test_label[pred][:2]:
+                    saved_x = cl
+
+            for cl in range(classes):
+                if unique_test_cpv[cl][:2] == pred_label[pred][:2]:
+                    saved_y = cl
+                    matrix[saved_x][saved_y] += 1
+
+    cmp = ConfusionMatrixDisplay(confusion_matrix=matrix)
+    fig, ax = plt.subplots(figsize=(100, 100))
+    cmp.plot(ax=ax)
+    plt.title(plot_name)
+    plt.show()
 
 
 # Funzione che calcola l'accuracy tenendo conto delle divisioni dei CPV
@@ -446,13 +532,16 @@ if __name__ == '__main__':
 
     # Creo una lista dei CIG
     cigs_list = data_df.CIG.values.tolist()
+    print(" ______________Cig presenti nel file csv:", len(cigs_list), "\n")
 
     # Assegno a una variabile il percorso passato dal terminale
-    data_folder = sys.argv[2]
+    data_folder = sys.argv[1]
     # (1) "D:/Marilisa/Tesi/Dataset/process_bandi_cpv/udpipe",  (2) "D:/PycharmProject/pythonproject/provaset"
 
     # Creo un dict che avrà come chiave il CIG, e come valore una lista che conterrà i token rispettivi
     cig_token_dictionary = create_token_list(cigs_list, data_folder)
+
+    print("______________Cig che hanno del testo preso dall'output del tool udpipe:", len(cig_token_dictionary.keys()) )
 
     print("\nESPERIMENTO CON DIVISIONE SEMPLICE DEL DATASET")
 
@@ -464,6 +553,7 @@ if __name__ == '__main__':
     df_labels = cpv_extracter_from_csv()
 
     s3 = pd.Series(df_labels, name='CPV')
+    print("\n______________Numero di cpv unici nel dataset con soli cig che hanno testo:", s3.nunique())
 
     # Lista che conterrà i cpv trasformati nella rispettiva divisione
     transformed_df_labels = []
@@ -475,13 +565,22 @@ if __name__ == '__main__':
                 break
 
     s3_transformed = pd.Series(transformed_df_labels, name='CPV_T')
+    print("______________Numero di cpv unici quando trasformo i cpv nella propria divisione:", s3_transformed.nunique())
 
     # Creo un nuovo dataset con cig che hanno del testo, con i rispettivi token e con il CPV associato
     new_df = pd.concat([s1, s2, s3, s3_transformed], axis=1)
     new_df = new_df.dropna()
 
     # Divisione semplice del nuovo dataframe in train e test
-    train, test = train_test_split(new_df, test_size=0.2)
+    train, test = train_test_split(new_df, test_size=0.3)
+
+    print("\n______________Divisione semplice del dataset (80% train, 20% test)")
+    print("______________Numero di CIG di train:", len(train.CIG))
+    print("______________Numero di CIG di test:", len(test.CIG))
+    print("______________Numero classi uniche di train:", train.CPV.nunique(), "su", len(train.CPV))
+    print("______________Numero classi trasformate uniche di train:", train.CPV_T.nunique(), "su", len(train.CPV_T))
+    print("______________Numero classi uniche di test:", test.CPV.nunique(), "su", len(test.CPV))
+    print("______________Numero classi trasformate uniche di test:", test.CPV_T.nunique(), "su", len(test.CPV_T))
 
     # Dal train e dal test estraggo i token per ogni cig, i bigrammi, il dizionario e la bow
     train_bigram, train_dictionary, train_corpus = create_dictionary_and_corpus(train)
@@ -513,53 +612,158 @@ if __name__ == '__main__':
     # Estraggo le feature anche dalla bow
     X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)  # (train_bigram, test_bigram)
 
-    # Scalo le feature per entrambi gli esperimenti
-    # X_train, X_test = feature_scaler(X_train, X_test)
-    # X_train_bow, X_test_bow = feature_scaler(X_train_bow, X_test_bow)
+    X_train_comb = np.concatenate([X_train_tm, X_train_bow], 1)
+    X_test_comb = np.concatenate([X_test_tm, X_test_bow], 1)
 
     print("Esperimento classificazione con CPV trasformate nella rispettiva divisione\n")
 
+    # Contiene le classi di test (cpv trasformati)
+    unique_te_cpv_t = test.CPV_T.unique()
+
     # SUPPORT VECTOR MACHINE
 
-    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr, "Primo_esperimento_SVM_CPV_Trasformate_Topic_Model", "Primo_esperimento_SVM_CPV_Trasformate_BOW")
+    y_pred_svm_tm, y_pred_svm_bow, y_pred_svm_comb, mrr_svm_tm, mrr_svm_bow, mrr_svm_comb, mrr_mod_svm_tm, mrr_mod_svm_bow, mrr_mod_svm_comb = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train_tr, y_test_tr, False)
+
+    # cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_tm, "Primo_esperimento_SVM_CPV_Trasformate_Topic_Model")
+    #
+    # cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_bow, "Primo_esperimento_SVM_CPV_Trasformate_BOW")
+    #
+    # cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_comb, "Primo_esperimento_SVM_CPV_Trasformate_Feature_Combinate")
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
 
+    print("Mean Reciprocal Rank SVM (topic model)", mrr_svm_tm)
+
     accuracy_bow = metrics.accuracy_score(y_test_tr, y_pred_svm_bow)
     print("Support vector machine accuracy (bow):", accuracy_bow)
 
+    print("Mean Reciprocal Rank SVM (bow)", mrr_svm_bow)
+
+    accuracy_comb = metrics.accuracy_score(y_test_tr, y_pred_svm_comb)
+    print("Support vector machine accuracy (Feature_Combinate):", accuracy_comb)
+
+    print("Mean Reciprocal Rank SVM (Feature_Combinate)", mrr_svm_comb)
+
+    print("\n______________Accuracy_Primo_esperimento_SVM_CPV_Trasformate_Topic_Model:", accuracy_tm)
+    print("______________Accuracy_Primo_esperimento_SVM_CPV_Trasformate_BOW:", accuracy_bow)
+    print("______________Accuracy_Primo_esperimento_SVM_CPV_Trasformate_Feature_Combinate:", accuracy_comb)
+    print("\n______________MRR_Primo_esperimento_SVM_CPV_Trasformate_Topic_Model:", mrr_svm_tm)
+    print("______________MRR_Primo_esperimento_SVM_CPV_Trasformate_BOW:", mrr_svm_bow)
+    print("______________MRR_Primo_esperimento_SVM_CPV_Trasformate_Feature_Combinate:", mrr_svm_comb)
+
     # RANDOM FOREST
 
-    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr, "Primo_esperimento_RF_CPV_Trasformate_Topic_Model", "Primo_esperimento_RF_CPV_Trasformate_BOW")
+    y_pred_rf_tm, y_pred_rf_bow, y_pred_rf_comb, mrr_rf_tm, mrr_rf_bow, mrr_rf_comb, mrr_mod_rf_tm, mrr_mod_rf_bow, mrr_mod_rf_comb = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train_tr, y_test_tr, False)
+
+    # cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_tm, "Primo_esperimento_RF_CPV_Trasformate_Topic_Model")
+    #
+    # cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_bow, "Primo_esperimento_RF_CPV_Trasformate_BOW")
+    #
+    # cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_comb, "Primo_esperimento_RF_CPV_Trasformate_Feature_Combinate")
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
 
+    print("Mean Reciprocal Rank RF (topic model)", mrr_rf_tm)
+
     accuracy_bow = metrics.accuracy_score(y_test_tr, y_pred_rf_bow)
     print("Random forest accuracy (bow):", accuracy_bow)
 
+    print("Mean Reciprocal Rank RF (bow)", mrr_rf_bow)
+
+    accuracy_comb = metrics.accuracy_score(y_test_tr, y_pred_rf_comb)
+    print("Random forest accuracy (Feature_Combinate):", accuracy_comb)
+
+    print("Mean Reciprocal Rank RF (Feature_Combinate)", mrr_rf_comb)
+
+    print("\n______________Accuracy_Primo_esperimento_RF_CPV_Trasformate_Topic_Model:", accuracy_tm)
+    print("______________Accuracy_Primo_esperimento_RF_CPV_Trasformate_BOW:", accuracy_bow)
+    print("______________Accuracy_Primo_esperimento_RF_CPV_Trasformate_Feature_Combinate:", accuracy_comb)
+    print("\n______________MRR_Primo_esperimento_RF_CPV_Trasformate_Topic_Model:", mrr_rf_tm)
+    print("______________MRR_Primo_esperimento_RF_CPV_Trasformate_BOW:", mrr_rf_bow)
+    print("______________MRR_Primo_esperimento_RF_CPV_Trasformate_Feature_Combinate:", mrr_rf_comb)
+
     print("\n Esperimento classificazione con modifica alla valutazione dell'accuracy\n")
+
+    # Contiene le classi di test
+    unique_te_cpv = test.CPV.unique()
 
     # SUPPORT VECTOR MACHINE
 
-    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test, "Primo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model", "Primo_esperimento_SVM_CPV_Accuracy_modificata_BOW")
+    y_pred_svm_tm, y_pred_svm_bow, y_pred_svm_comb, mrr_svm_tm, mrr_svm_bow, mrr_svm_comb, mrr_mod_svm_tm, mrr_mod_svm_bow, mrr_mod_svm_comb = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train, y_test, True)
+
+    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_tm, "Primo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model")
+    #
+    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_bow, "Primo_esperimento_SVM_CPV_Accuracy_modificata_BOW")
+    #
+    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_comb, "Primo_esperimento_SVM_CPV_Accuracy_modificata_Feature_Combinate")
 
     accuracy_tm = new_accuracy(y_test, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
 
+    print("Mean Reciprocal Rank SVM (topic model)", mrr_svm_tm)
+    print("Mean Reciprocal Rank SVM (topic model) (tenendo conto delle divisioni)", mrr_mod_svm_tm)
+
     accuracy_bow = new_accuracy(y_test, y_pred_svm_bow)
     print("Support vector machine accuracy (bow):", accuracy_bow)
 
+    print("Mean Reciprocal Rank SVM (bow)", mrr_svm_bow)
+    print("Mean Reciprocal Rank SVM (bow) (tenendo conto delle divisioni)", mrr_mod_svm_bow)
+
+    accuracy_comb = new_accuracy(y_test, y_pred_svm_comb)
+    print("Support vector machine accuracy (Feature_Combinate):", accuracy_comb)
+
+    print("Mean Reciprocal Rank SVM (Feature_Combinate)", mrr_svm_comb)
+    print("Mean Reciprocal Rank SVM (Feature_Combinate) (tenendo conto delle divisioni)", mrr_mod_svm_comb)
+
+    print("\n______________Accuracy_Primo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model:", accuracy_tm)
+    print("______________Accuracy_Primo_esperimento_SVM_CPV_Accuracy_modificata_BOW:", accuracy_bow)
+    print("______________Accuracy_Primo_esperimento_SVM_CPV_Accuracy_modificata_Feature_Combinate:", accuracy_comb)
+    print("\n______________MRR_Primo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model:", mrr_svm_tm)
+    print("______________MRR_Primo_esperimento_SVM_CPV_Accuracy_modificata_BOW:", mrr_svm_bow)
+    print("______________MRR_Primo_esperimento_SVM_CPV_Accuracy_modificata_Feature_Combinate:", mrr_svm_comb)
+    print("\n______________MRR_Primo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model_Tenendo_conto_delle_divisioni:", mrr_mod_svm_tm)
+    print("______________MRR_Primo_esperimento_SVM_CPV_Accuracy_modificata_BOW_Tenendo_conto_delle_divisioni:", mrr_mod_svm_bow)
+    print("______________MRR_Primo_esperimento_SVM_CPV_Accuracy_modificata_Feature_Combinate_Tenendo_conto_delle_divisioni:", mrr_mod_svm_comb)
+
     # RANDOM FOREST
 
-    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test, "Primo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model", "Primo_esperimento_RF_CPV_Accuracy_modificata_BOW")
+    y_pred_rf_tm, y_pred_rf_bow, y_pred_rf_comb, mrr_rf_tm, mrr_rf_bow, mrr_rf_comb, mrr_mod_rf_tm, mrr_mod_rf_bow, mrr_mod_rf_comb = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train, y_test, True)
+
+    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_tm, "Primo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model")
+    #
+    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_bow, "Primo_esperimento_RF_CPV_Accuracy_modificata_BOW")
+    #
+    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_comb, "Primo_esperimento_RF_CPV_Accuracy_modificata_Feature_Combinate")
 
     accuracy_tm = new_accuracy(y_test, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
 
+    print("Mean Reciprocal Rank RF (topic model)", mrr_rf_tm)
+    print("Mean Reciprocal Rank RF (topic model) (tenendo conto delle divisioni)", mrr_mod_rf_tm)
+
     accuracy_bow = new_accuracy(y_test, y_pred_rf_bow)
     print("Random forest accuracy (bow):", accuracy_bow)
+
+    print("Mean Reciprocal Rank RF (bow)", mrr_rf_bow)
+    print("Mean Reciprocal Rank RF (bow) (tenendo conto delle divisioni)", mrr_mod_rf_bow)
+
+    accuracy_comb = new_accuracy(y_test, y_pred_rf_comb)
+    print("Random forest accuracy (Feature_Combinate):", accuracy_comb)
+
+    print("Mean Reciprocal Rank RF (Feature_Combinate)", mrr_rf_comb)
+    print("Mean Reciprocal Rank RF (Feature_Combinate) (tenendo conto delle divisioni)", mrr_mod_rf_comb)
+
+    print("\n______________Accuracy_Primo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model:", accuracy_tm)
+    print("______________Accuracy_Primo_esperimento_RF_CPV_Accuracy_modificata_BOW:", accuracy_bow)
+    print("______________Accuracy_Primo_esperimento_RF_CPV_Accuracy_modificata_Feature_Combinate:", accuracy_comb)
+    print("\n______________MRR_Primo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model:", mrr_rf_tm)
+    print("______________MRR_Primo_esperimento_RF_CPV_Accuracy_modificata_BOW:", mrr_rf_bow)
+    print("______________MRR_Primo_esperimento_RF_CPV_Accuracy_modificata_Feature_Combinate:", mrr_rf_comb)
+    print("\n______________MRR_Primo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model_Tenendo_conto_delle_divisioni:", mrr_mod_rf_tm)
+    print("______________MRR_Primo_esperimento_RF_CPV_Accuracy_modificata_BOW_Tenendo_conto_delle_divisioni:", mrr_mod_rf_bow)
+    print("______________MRR_Primo_esperimento_RF_CPV_Accuracy_modificata_Feature_Combinate_Tenendo_conto_delle_divisioni:", mrr_mod_rf_comb)
 
     # --------------------- SECONDO ESPERIMENTO ---------------------
 
@@ -578,6 +782,14 @@ if __name__ == '__main__':
 
     # Divido il dataframe mantenendo la stessa distrubuzione delle label nel train e test set
     train, test = train_test_split(df_without_one, test_size=0.3, stratify=label_list)
+
+    print("\n______________Divisione del dataset mantenendo la distribuzione (70% train, 30% test)")
+    print("______________Numero di CIG di train:", len(train.CIG))
+    print("______________Numero di CIG di test:", len(test.CIG))
+    print("______________Numero classi uniche di train:", train.CPV.nunique(), "su", len(train.CPV))
+    print("______________Numero classi trasformate uniche di train:", train.CPV_T.nunique(), "su", len(train.CPV_T))
+    print("______________Numero classi uniche di test:", test.CPV.nunique(), "su", len(test.CPV))
+    print("______________Numero classi trasformate uniche di test:", test.CPV_T.nunique(), "su", len(test.CPV_T))
 
     # Dal train e dal test estraggo i token per ogni cig, i bigrammi, il dizionario e la bow
     train_bigram, train_dictionary, train_corpus = create_dictionary_and_corpus(train)
@@ -609,50 +821,155 @@ if __name__ == '__main__':
     # Estraggo le feature anche dalla bow
     X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)  # (train_bigram, test_bigram)
 
-    # Scalo le feature per entrambi gli esperimenti
-    # X_train, X_test = feature_scaler(X_train, X_test)
-    # X_train_bow, X_test_bow = feature_scaler(X_train_bow, X_test_bow)
+    X_train_comb = np.concatenate([X_train_tm, X_train_bow], 1)
+    X_test_comb = np.concatenate([X_test_tm, X_test_bow], 1)
 
     print(" Esperimento classificazione con CPV trasformate nella rispettiva divisione\n")
 
+    # Contiene le classi di test (cpv trasformati)
+    unique_te_cpv_t = test.CPV_T.unique()
+
     # SUPPORT VECTOR MACHINE
 
-    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr, "Secondo_esperimento_SVM_CPV_Trasformate_Topic_Model", "Secondo_esperimento_SVM_CPV_Trasformate_BOW")
+    y_pred_svm_tm, y_pred_svm_bow, y_pred_svm_comb, mrr_svm_tm, mrr_svm_bow, mrr_svm_comb, mrr_mod_svm_tm, mrr_mod_svm_bow, mrr_mod_svm_comb = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train_tr, y_test_tr, False)
+
+    # cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_tm, "Secondo_esperimento_SVM_CPV_Trasformate_Topic_Model")
+    #
+    # cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_bow, "Secondo_esperimento_SVM_CPV_Trasformate_BOW")
+    #
+    # cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_comb, "Secondo_esperimento_SVM_CPV_Trasformate_Feature_Combinate")
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
 
+    print("Mean Reciprocal Rank SVM (topic model)", mrr_svm_tm)
+
     accuracy_bow = metrics.accuracy_score(y_test_tr, y_pred_svm_bow)
     print("Support vector machine accuracy (bow):", accuracy_bow)
 
+    print("Mean Reciprocal Rank SVM (bow)", mrr_svm_bow)
+
+    accuracy_comb = metrics.accuracy_score(y_test_tr, y_pred_svm_comb)
+    print("Support vector machine accuracy (Feature_Combinate):", accuracy_comb)
+
+    print("Mean Reciprocal Rank SVM (Feature_Combinate)", mrr_svm_comb)
+
+    print("\n______________Accuracy_Secondo_esperimento_SVM_CPV_Trasformate_Topic_Model:", accuracy_tm)
+    print("______________Accuracy_Secondo_esperimento_SVM_CPV_Trasformate_BOW:", accuracy_bow)
+    print("______________Accuracy_Secondo_esperimento_SVM_CPV_Trasformate_Feature_Combinate:", accuracy_comb)
+    print("\n______________MRR_Secondo_esperimento_SVM_CPV_Trasformate_Topic_Model:", mrr_svm_tm)
+    print("______________MRR_Secondo_esperimento_SVM_CPV_Trasformate_BOW:", mrr_svm_bow)
+    print("______________MRR_Secondo_esperimento_SVM_CPV_Trasformate_Feature_Combinate:", mrr_svm_comb)
+
     # RANDOM FOREST
 
-    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train_tr, y_test_tr, "Secondo_esperimento_RF_CPV_Trasformate_Topic_Model", "Secondo_esperimento_RF_CPV_Trasformate_BOW")
+    y_pred_rf_tm, y_pred_rf_bow, y_pred_rf_comb, mrr_rf_tm, mrr_rf_bow, mrr_rf_comb, mrr_mod_rf_tm, mrr_mod_rf_bow, mrr_mod_rf_comb = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train_tr, y_test_tr, False)
+
+    # cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_tm, "Secondo_esperimento_RF_CPV_Trasformate_Topic_Model")
+    #
+    # cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_bow, "Secondo_esperimento_RF_CPV_Trasformate_BOW")
+    #
+    # cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_comb, "Secondo_esperimento_RF_CPV_Trasformate_Feature_Combinate")
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
 
+    print("Mean Reciprocal Rank RF (topic model)", mrr_rf_tm)
+
     accuracy_bow = metrics.accuracy_score(y_test_tr, y_pred_rf_bow)
     print("Random forest accuracy (bow):", accuracy_bow)
 
+    print("Mean Reciprocal Rank RF (bow)", mrr_rf_bow)
+
+    accuracy_comb = metrics.accuracy_score(y_test_tr, y_pred_rf_comb)
+    print("Random forest accuracy (Feature_Combinate):", accuracy_comb)
+
+    print("Mean Reciprocal Rank RF (Feature_Combinate)", mrr_rf_comb)
+
+    print("\n______________Accuracy_Secondo_esperimento_RF_CPV_Trasformate_Topic_Model:", accuracy_tm)
+    print("______________Accuracy_Secondo_esperimento_RF_CPV_Trasformate_BOW:", accuracy_bow)
+    print("______________Accuracy_Secondo_esperimento_RF_CPV_Trasformate_Feature_Combinate:", accuracy_comb)
+    print("\n______________MRR_Secondo_esperimento_RF_CPV_Trasformate_Topic_Model:", mrr_rf_tm)
+    print("______________MRR_Secondo_esperimento_RF_CPV_Trasformate_BOW:", mrr_rf_bow)
+    print("______________MRR_Secondo_esperimento_RF_CPV_Trasformate_Feature_Combinate:", mrr_rf_comb)
+
     print("\n Esperimento classificazione con modifica alla valutazione dell'accuracy\n")
+
+    # Contiene le classi di test
+    unique_te_cpv = test.CPV.unique()
 
     # SUPPORT VECTOR MACHINE
 
-    y_pred_svm_tm, y_pred_svm_bow = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test, "Secondo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model", "Secondo_esperimento_SVM_CPV_Accuracy_modificata_BOW")
+    y_pred_svm_tm, y_pred_svm_bow, y_pred_svm_comb, mrr_svm_tm, mrr_svm_bow, mrr_svm_comb, mrr_mod_svm_tm, mrr_mod_svm_bow, mrr_mod_svm_comb = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train, y_test, True)
+
+    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_tm, "Secondo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model")
+    #
+    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_bow, "Secondo_esperimento_SVM_CPV_Accuracy_modificata_BOW")
+    #
+    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_comb, "Secondo_esperimento_SVM_CPV_Accuracy_modificata_Feature_Combinate")
 
     accuracy_tm = new_accuracy(y_test, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
 
+    print("Mean Reciprocal Rank SVM (topic model)", mrr_svm_tm)
+    print("Mean Reciprocal Rank SVM (topic model) (tenendo conto delle divisioni)", mrr_mod_svm_tm)
+
     accuracy_bow = new_accuracy(y_test, y_pred_svm_bow)
     print("Support vector machine accuracy (bow):", accuracy_bow)
 
+    print("Mean Reciprocal Rank SVM (bow)", mrr_svm_bow)
+    print("Mean Reciprocal Rank SVM (bow) (tenendo conto delle divisioni)", mrr_mod_svm_bow)
+
+    accuracy_comb = new_accuracy(y_test, y_pred_svm_comb)
+    print("Support vector machine accuracy (Feature_Combinate):", accuracy_comb)
+
+    print("Mean Reciprocal Rank SVM (Feature_Combinate)", mrr_svm_comb)
+    print("Mean Reciprocal Rank SVM (Feature_Combinate) (tenendo conto delle divisioni)", mrr_mod_svm_comb)
+
+    print("\n______________Accuracy_Secondo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model:", accuracy_tm)
+    print("______________Accuracy_Secondo_esperimento_SVM_CPV_Accuracy_modificata_BOW:", accuracy_bow)
+    print("______________Accuracy_Secondo_esperimento_SVM_CPV_Accuracy_modificata_Feature_Combinate:", accuracy_comb)
+    print("\n______________MRR_Secondo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model:", mrr_svm_tm)
+    print("______________MRR_Secondo_esperimento_SVM_CPV_Accuracy_modificata_BOW:", mrr_svm_bow)
+    print("______________MRR_Secondo_esperimento_SVM_CPV_Accuracy_modificata_Feature_Combinate:", mrr_svm_comb)
+    print("\n______________MRR_Secondo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model_Tenendo_conto_delle_divisioni:", mrr_mod_svm_tm)
+    print("______________MRR_Secondo_esperimento_SVM_CPV_Accuracy_modificata_BOW_Tenendo_conto_delle_divisioni:", mrr_mod_svm_bow)
+    print("______________MRR_Secondo_esperimento_SVM_CPV_Accuracy_modificata_Feature_Combinate_Tenendo_conto_delle_divisioni:", mrr_mod_svm_comb)
+
     # RANDOM FOREST
 
-    y_pred_rf_tm, y_pred_rf_bow = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, y_train, y_test, "Secondo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model", "Secondo_esperimento_RF_CPV_Accuracy_modificata_BOW")
+    y_pred_rf_tm, y_pred_rf_bow, y_pred_rf_comb, mrr_rf_tm, mrr_rf_bow, mrr_rf_comb, mrr_mod_rf_tm, mrr_mod_rf_bow, mrr_mod_rf_comb = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train, y_test, True)
+
+    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_tm, "Secondo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model")
+    #
+    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_bow, "Secondo_esperimento_RF_CPV_Accuracy_modificata_BOW")
+    #
+    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_comb, "Secondo_esperimento_RF_CPV_Accuracy_modificata_Feature_Combinate")
 
     accuracy_tm = new_accuracy(y_test, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
 
+    print("Mean Reciprocal Rank RF (topic model)", mrr_rf_tm)
+    print("Mean Reciprocal Rank RF (topic model) (tenendo conto delle divisioni)", mrr_mod_rf_tm)
+
     accuracy_bow = new_accuracy(y_test, y_pred_rf_bow)
     print("Random forest accuracy (bow):", accuracy_bow)
+
+    print("Mean Reciprocal Rank RF (bow)", mrr_rf_bow)
+    print("Mean Reciprocal Rank RF (bow) (tenendo conto delle divisioni)", mrr_mod_rf_bow)
+
+    accuracy_comb = new_accuracy(y_test, y_pred_rf_comb)
+    print("Random forest accuracy (Feature_Combinate):", accuracy_comb)
+
+    print("Mean Reciprocal Rank RF (Feature_Combinate)", mrr_rf_comb)
+    print("Mean Reciprocal Rank RF (Feature_Combinate) (tenendo conto delle divisioni)", mrr_mod_rf_comb)
+
+    print("\n______________Accuracy_Primo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model:", accuracy_tm)
+    print("______________Accuracy_Primo_esperimento_RF_CPV_Accuracy_modificata_BOW:", accuracy_bow)
+    print("______________Accuracy_Primo_esperimento_RF_CPV_Accuracy_modificata_Feature_Combinate:", accuracy_comb)
+    print("\n______________MRR_Primo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model:", mrr_rf_tm)
+    print("______________MRR_Primo_esperimento_RF_CPV_Accuracy_modificata_BOW:", mrr_rf_bow)
+    print("______________MRR_Primo_esperimento_RF_CPV_Accuracy_modificata_Feature_Combinate:", mrr_rf_comb)
+    print("\n______________MRR_Primo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model_Tenendo_conto_delle_divisioni:", mrr_mod_rf_tm)
+    print("______________MRR_Primo_esperimento_RF_CPV_Accuracy_modificata_BOW_Tenendo_conto_delle_divisioni:", mrr_mod_rf_bow)
+    print("______________MRR_Primo_esperimento_RF_CPV_Accuracy_modificata_Feature_Combinate_Tenendo_conto_delle_divisioni:", mrr_mod_rf_comb)
