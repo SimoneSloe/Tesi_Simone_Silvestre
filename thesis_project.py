@@ -307,7 +307,7 @@ def feature_scaler(train_feature, test_feature):
 
 
 def mean_reciprocal_rank(test_feat, clf, test_la, mod):
-    # Invece di predirre una singola classe, il classificatore produce in questo la probabilità che ha un cig per ogni cpv
+    # Invece di predirre una singola classe, il classificatore gli score di confidenza per ogni CPV a cui può appartenere un CIG
     probs = clf.predict_proba(test_feat)
     # Creo un ranking basato sullo score di confidenza
     sorted_probs = np.argsort(probs, axis=1)
@@ -317,16 +317,16 @@ def mean_reciprocal_rank(test_feat, clf, test_la, mod):
     mrr_mod = 0
     rrs = []
     rrs_mod = []
-    try_dict = {}
+    clf_label_dict = {}
     id_cl = 0
 
-    # Assegno un indice ad ogni classe nel classificatore
+    # Assegno un id ad ogni classe nel classificatore
     for cl in tr_cl:
-        try_dict[cl] = id_cl
+        clf_label_dict[cl] = id_cl
         id_cl += 1
 
-    keys = list(try_dict.keys())
-    values = list(try_dict.values())
+    keys = list(clf_label_dict.keys())
+    values = list(clf_label_dict.values())
 
     # Per ogni elemento nelle label di test
     for ix in range(len(test_la)):
