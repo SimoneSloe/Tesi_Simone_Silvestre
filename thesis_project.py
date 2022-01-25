@@ -461,23 +461,40 @@ def rf_classifier(train_tm_feat, test_tm_feat, train_bow_feat, test_bow_feat, tr
     return y_pred_tm, y_pred_bow, y_pred_comb, mrr_tm, mrr_bow, mrr_comb, mrr_mod_tm, mrr_mod_bow, mrr_mod_comb
 
 
-def cpv_tr_confusion_matrix(test_label, pred_label, plot_name):
-    matrix = confusion_matrix(test_label, pred_label)
-    cmp = ConfusionMatrixDisplay(confusion_matrix=matrix)
-    fig, ax = plt.subplots(figsize=(100, 100))
-    cmp.plot(ax=ax)
-    plt.title(plot_name)
-    plt.show()
+def save_confusion_matrix(fl_name, cm):
+    # Creo una cartella in cui salverò le confusion matrices
+
+    df_confusion = pd.DataFrame(cm)
+
+    # Se la cartella non esiste la creo
+    if not os.path.isdir("Confusion_matrices"):
+        os.makedirs("Confusion_matrices")
+
+    # Cambio la cartella corrente
+    os.chdir('Confusion_matrices')
+
+    # Aggiungo l'estensione al file
+    fl_name = fl_name + ".csv"
+
+    df_confusion.to_csv(fl_name)
+
+    # Esco dalla cartella
+    os.chdir("../")
 
 
-def my_confusion_matrix(unique_test_cpv, test_label, pred_label, plot_name):
+def cpv_tr_confusion_matrix(test_label, pred_label, file_name):
+    c_matrix = confusion_matrix(test_label, pred_label)
+    save_confusion_matrix(file_name, c_matrix)
+
+
+def my_confusion_matrix(unique_test_cpv, test_label, pred_label, file_name):
     classes = len(unique_test_cpv)
-    matrix = np.zeros([classes, classes], dtype=int)
+    c_matrix = np.zeros([classes, classes], dtype=int)
     for pred in range(len(pred_label)):
         if pred_label[pred][:2] == test_label[pred][:2]:
             for cl in range(classes):
                 if unique_test_cpv[cl][:2] == pred_label[pred][:2]:
-                    matrix[cl][cl] += 1
+                    c_matrix[cl][cl] += 1
         else:
             for cl in range(classes):
                 if unique_test_cpv[cl][:2] == test_label[pred][:2]:
@@ -486,13 +503,9 @@ def my_confusion_matrix(unique_test_cpv, test_label, pred_label, plot_name):
             for cl in range(classes):
                 if unique_test_cpv[cl][:2] == pred_label[pred][:2]:
                     saved_y = cl
-                    matrix[saved_x][saved_y] += 1
+                    c_matrix[saved_x][saved_y] += 1
 
-    cmp = ConfusionMatrixDisplay(confusion_matrix=matrix)
-    fig, ax = plt.subplots(figsize=(100, 100))
-    cmp.plot(ax=ax)
-    plt.title(plot_name)
-    plt.show()
+    save_confusion_matrix(file_name, c_matrix)
 
 
 # Funzione che calcola l'accuracy tenendo conto delle divisioni dei CPV
@@ -571,6 +584,10 @@ if __name__ == '__main__':
     new_df = pd.concat([s1, s2, s3, s3_transformed], axis=1)
     new_df = new_df.dropna()
 
+    new_df.to_pickle("div_sempl") # DA RIMUOVERE
+
+    # aba = pd.read_pickle("div_sempl")
+
     # Divisione semplice del nuovo dataframe in train e test
     train, test = train_test_split(new_df, test_size=0.3)
 
@@ -624,11 +641,11 @@ if __name__ == '__main__':
 
     y_pred_svm_tm, y_pred_svm_bow, y_pred_svm_comb, mrr_svm_tm, mrr_svm_bow, mrr_svm_comb, mrr_mod_svm_tm, mrr_mod_svm_bow, mrr_mod_svm_comb = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train_tr, y_test_tr, False)
 
-    # cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_tm, "Primo_esperimento_SVM_CPV_Trasformate_Topic_Model")
-    #
-    # cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_bow, "Primo_esperimento_SVM_CPV_Trasformate_BOW")
-    #
-    # cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_comb, "Primo_esperimento_SVM_CPV_Trasformate_Feature_Combinate")
+    cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_tm, "Primo_esperimento_SVM_CPV_Trasformate_Topic_Model")
+
+    cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_bow, "Primo_esperimento_SVM_CPV_Trasformate_BOW")
+
+    cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_comb, "Primo_esperimento_SVM_CPV_Trasformate_Feature_Combinate")
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
@@ -656,11 +673,11 @@ if __name__ == '__main__':
 
     y_pred_rf_tm, y_pred_rf_bow, y_pred_rf_comb, mrr_rf_tm, mrr_rf_bow, mrr_rf_comb, mrr_mod_rf_tm, mrr_mod_rf_bow, mrr_mod_rf_comb = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train_tr, y_test_tr, False)
 
-    # cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_tm, "Primo_esperimento_RF_CPV_Trasformate_Topic_Model")
-    #
-    # cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_bow, "Primo_esperimento_RF_CPV_Trasformate_BOW")
-    #
-    # cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_comb, "Primo_esperimento_RF_CPV_Trasformate_Feature_Combinate")
+    cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_tm, "Primo_esperimento_RF_CPV_Trasformate_Topic_Model")
+
+    cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_bow, "Primo_esperimento_RF_CPV_Trasformate_BOW")
+
+    cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_comb, "Primo_esperimento_RF_CPV_Trasformate_Feature_Combinate")
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
@@ -693,11 +710,11 @@ if __name__ == '__main__':
 
     y_pred_svm_tm, y_pred_svm_bow, y_pred_svm_comb, mrr_svm_tm, mrr_svm_bow, mrr_svm_comb, mrr_mod_svm_tm, mrr_mod_svm_bow, mrr_mod_svm_comb = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train, y_test, True)
 
-    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_tm, "Primo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model")
-    #
-    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_bow, "Primo_esperimento_SVM_CPV_Accuracy_modificata_BOW")
-    #
-    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_comb, "Primo_esperimento_SVM_CPV_Accuracy_modificata_Feature_Combinate")
+    my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_tm, "Primo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model")
+
+    my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_bow, "Primo_esperimento_SVM_CPV_Accuracy_modificata_BOW")
+
+    my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_comb, "Primo_esperimento_SVM_CPV_Accuracy_modificata_Feature_Combinate")
 
     accuracy_tm = new_accuracy(y_test, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
@@ -731,11 +748,11 @@ if __name__ == '__main__':
 
     y_pred_rf_tm, y_pred_rf_bow, y_pred_rf_comb, mrr_rf_tm, mrr_rf_bow, mrr_rf_comb, mrr_mod_rf_tm, mrr_mod_rf_bow, mrr_mod_rf_comb = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train, y_test, True)
 
-    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_tm, "Primo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model")
-    #
-    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_bow, "Primo_esperimento_RF_CPV_Accuracy_modificata_BOW")
-    #
-    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_comb, "Primo_esperimento_RF_CPV_Accuracy_modificata_Feature_Combinate")
+    my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_tm, "Primo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model")
+
+    my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_bow, "Primo_esperimento_RF_CPV_Accuracy_modificata_BOW")
+
+    my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_comb, "Primo_esperimento_RF_CPV_Accuracy_modificata_Feature_Combinate")
 
     accuracy_tm = new_accuracy(y_test, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
@@ -777,6 +794,8 @@ if __name__ == '__main__':
 
     # Mantengo nel dataframe i CIG che hanno più di una occorrenza
     df_without_one = new_df[~new_df.CPV.isin(to_remove)]
+
+    df_without_one.to_pickle("div_non_sempl") # DA RIMUOVERE
 
     label_list = df_without_one.CPV
 
@@ -833,11 +852,11 @@ if __name__ == '__main__':
 
     y_pred_svm_tm, y_pred_svm_bow, y_pred_svm_comb, mrr_svm_tm, mrr_svm_bow, mrr_svm_comb, mrr_mod_svm_tm, mrr_mod_svm_bow, mrr_mod_svm_comb = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train_tr, y_test_tr, False)
 
-    # cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_tm, "Secondo_esperimento_SVM_CPV_Trasformate_Topic_Model")
-    #
-    # cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_bow, "Secondo_esperimento_SVM_CPV_Trasformate_BOW")
-    #
-    # cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_comb, "Secondo_esperimento_SVM_CPV_Trasformate_Feature_Combinate")
+    cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_tm, "Secondo_esperimento_SVM_CPV_Trasformate_Topic_Model")
+
+    cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_bow, "Secondo_esperimento_SVM_CPV_Trasformate_BOW")
+
+    cpv_tr_confusion_matrix(y_test_tr, y_pred_svm_comb, "Secondo_esperimento_SVM_CPV_Trasformate_Feature_Combinate")
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
@@ -865,11 +884,11 @@ if __name__ == '__main__':
 
     y_pred_rf_tm, y_pred_rf_bow, y_pred_rf_comb, mrr_rf_tm, mrr_rf_bow, mrr_rf_comb, mrr_mod_rf_tm, mrr_mod_rf_bow, mrr_mod_rf_comb = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train_tr, y_test_tr, False)
 
-    # cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_tm, "Secondo_esperimento_RF_CPV_Trasformate_Topic_Model")
-    #
-    # cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_bow, "Secondo_esperimento_RF_CPV_Trasformate_BOW")
-    #
-    # cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_comb, "Secondo_esperimento_RF_CPV_Trasformate_Feature_Combinate")
+    cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_tm, "Secondo_esperimento_RF_CPV_Trasformate_Topic_Model")
+
+    cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_bow, "Secondo_esperimento_RF_CPV_Trasformate_BOW")
+
+    cpv_tr_confusion_matrix(y_test_tr, y_pred_rf_comb, "Secondo_esperimento_RF_CPV_Trasformate_Feature_Combinate")
 
     accuracy_tm = metrics.accuracy_score(y_test_tr, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
@@ -902,11 +921,11 @@ if __name__ == '__main__':
 
     y_pred_svm_tm, y_pred_svm_bow, y_pred_svm_comb, mrr_svm_tm, mrr_svm_bow, mrr_svm_comb, mrr_mod_svm_tm, mrr_mod_svm_bow, mrr_mod_svm_comb = svm_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train, y_test, True)
 
-    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_tm, "Secondo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model")
-    #
-    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_bow, "Secondo_esperimento_SVM_CPV_Accuracy_modificata_BOW")
-    #
-    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_comb, "Secondo_esperimento_SVM_CPV_Accuracy_modificata_Feature_Combinate")
+    my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_tm, "Secondo_esperimento_SVM_CPV_Accuracy_modificata_Topic_Model")
+
+    my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_bow, "Secondo_esperimento_SVM_CPV_Accuracy_modificata_BOW")
+
+    my_confusion_matrix(unique_te_cpv, y_test, y_pred_svm_comb, "Secondo_esperimento_SVM_CPV_Accuracy_modificata_Feature_Combinate")
 
     accuracy_tm = new_accuracy(y_test, y_pred_svm_tm)
     print("Support vector machine accuracy (topic model):", accuracy_tm)
@@ -940,11 +959,11 @@ if __name__ == '__main__':
 
     y_pred_rf_tm, y_pred_rf_bow, y_pred_rf_comb, mrr_rf_tm, mrr_rf_bow, mrr_rf_comb, mrr_mod_rf_tm, mrr_mod_rf_bow, mrr_mod_rf_comb = rf_classifier(X_train_tm, X_test_tm, X_train_bow, X_test_bow, X_train_comb, X_test_comb, y_train, y_test, True)
 
-    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_tm, "Secondo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model")
-    #
-    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_bow, "Secondo_esperimento_RF_CPV_Accuracy_modificata_BOW")
-    #
-    # my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_comb, "Secondo_esperimento_RF_CPV_Accuracy_modificata_Feature_Combinate")
+    my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_tm, "Secondo_esperimento_RF_CPV_Accuracy_modificata_Topic_Model")
+
+    my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_bow, "Secondo_esperimento_RF_CPV_Accuracy_modificata_BOW")
+
+    my_confusion_matrix(unique_te_cpv, y_test, y_pred_rf_comb, "Secondo_esperimento_RF_CPV_Accuracy_modificata_Feature_Combinate")
 
     accuracy_tm = new_accuracy(y_test, y_pred_rf_tm)
     print("Random forest (topic model):", accuracy_tm)
