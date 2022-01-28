@@ -315,8 +315,10 @@ def feature_scaler(train_feature, test_feature):
 def mean_reciprocal_rank(test_feat, clf, test_la, mod):
     # Invece di predirre una singola classe, il classificatore gli score di confidenza per ogni CPV a cui può appartenere un CIG
     probs = clf.predict_proba(test_feat)
+
     # Creo un ranking basato sullo score di confidenza
-    sorted_probs = np.argsort(probs, axis=1)
+    sorted_probs = np.argsort(-probs, axis=1) # "-probs", per ordine decrescente
+
     # Classi del classificatore
     tr_cl = clf.classes_
 
@@ -641,7 +643,7 @@ if __name__ == '__main__':
 
     print("Estrazione feature dalla bow...\n")
     # Estraggo le feature anche dalla bow
-    X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)  # (train_bigram, test_bigram)
+    X_train_bow, X_test_bow = feature_extraction_bow(train_bigram, test_bigram)  # (train.TOKEN_CIG, test.TOKEN_CIG)
 
     X_train_comb = np.concatenate([X_train_tm, X_train_bow], 1)
     X_test_comb = np.concatenate([X_test_tm, X_test_bow], 1)
@@ -852,7 +854,7 @@ if __name__ == '__main__':
 
     print("Estrazione feature dalla bow...\n")
     # Estraggo le feature anche dalla bow
-    X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)  # (train_bigram, test_bigram)
+    X_train_bow, X_test_bow = feature_extraction_bow(train_bigram, test_bigram)  # (train_bigram, test_bigram)
 
     X_train_comb = np.concatenate([X_train_tm, X_train_bow], 1)
     X_test_comb = np.concatenate([X_test_tm, X_test_bow], 1)
@@ -1089,7 +1091,7 @@ if __name__ == '__main__':
 
     print("Estrazione feature dalla bow...\n")
     # Estraggo le feature anche dalla bow
-    X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)  # (train_bigram, test_bigram)
+    X_train_bow, X_test_bow = feature_extraction_bow(train_bigram, test_bigram)  # (train_bigram, test_bigram)
 
     X_train_comb = np.concatenate([X_train_tm, X_train_bow], 1)
     X_test_comb = np.concatenate([X_test_tm, X_test_bow], 1)
@@ -1297,7 +1299,7 @@ if __name__ == '__main__':
 
     print("Estrazione feature dalla bow...\n")
     # Estraggo le feature anche dalla bow
-    X_train_bow, X_test_bow = feature_extraction_bow(train.TOKEN_CIG, test.TOKEN_CIG)  # (train_bigram, test_bigram)
+    X_train_bow, X_test_bow = feature_extraction_bow(train_bigram, test_bigram)  # (train_bigram, test_bigram)
 
     X_train_comb = np.concatenate([X_train_tm, X_train_bow], 1)
     X_test_comb = np.concatenate([X_test_tm, X_test_bow], 1)
