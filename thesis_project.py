@@ -384,7 +384,7 @@ def mean_reciprocal_rank(test_feat, clf, test_la, mod):
 # Funzione che permette di addestrare una Support Vector Machine per la classificazione
 def training_svc(train_feature, train_label):
     # Creo un modello per la SVM utilizzando l'implementazione svc
-    svc = svm.SVC(probability=True)
+    svc = svm.SVC(kernel = 'linear', probability=True)
     # Addestro il modello utilizzando il training set
     svc.fit(train_feature, train_label)
     return svc
@@ -530,6 +530,34 @@ def new_accuracy(test_labels, pred_labels):
     acc = matches / num_samples
 
     return acc
+
+
+def create_token_list_obj(cig_objects):
+
+    # Lista delle stopwords
+    stop_w = stopwords.words('italian')
+    # Lista stop words extra
+    extra_stop_w = ["l’", "l'", "dell’", "dell'", "all’", "all'", "L’", "L'", "dall’", "dall'", "sull’",
+                                 "sull'", "un'", "un’", "il", "nell’", "nell'", "d’", "d'"]
+
+    t_obj = []
+
+    for elem in cig_obj:
+        low_elem = elem.lower()
+        t_obj.append(nltk.word_tokenize(low_elem))
+
+    for lines in t_obj:
+        for token in lines.copy():
+            # funzione per controllare se i token sono delle parole, utilizzando le regex
+            match_word = re.match("^[a-z]+$", token)
+            # se il token non è una parola allora lo rimuovo dalla token list
+            if not match_word:
+                lines.remove(token)
+            # se il token in questione è una parola e fa parte delle stopwords, oppure è un link, allora viene rimosso
+            # dalla lista dei Token
+            elif (token in stop_w) or (token in extra_stop_w) or (len(token) < 3):
+                lines.remove(token)
+    return t_obj
 
 
 # *************************** MAIN ***************************
@@ -1020,33 +1048,6 @@ if __name__ == '__main__':
     df_obj = new_df
 
     cig_obj = df_obj.OGGETTO_LOTTO.values.tolist()
-
-    def create_token_list_obj(cig_objects):
-
-        # Lista delle stopwords
-        stop_w = stopwords.words('italian')
-        # Lista stop words extra
-        extra_stop_w = ["l’", "l'", "dell’", "dell'", "all’", "all'", "L’", "L'", "dall’", "dall'", "sull’",
-                                 "sull'", "un'", "un’", "il", "nell’", "nell'", "d’", "d'"]
-
-        t_obj = []
-
-        for elem in cig_obj:
-            low_elem = elem.lower()
-            t_obj.append(nltk.word_tokenize(low_elem))
-
-        for lines in t_obj:
-            for token in lines.copy():
-                # funzione per controllare se i token sono delle parole, utilizzando le regex
-                match_word = re.match("^[a-z]+$", token)
-                # se il token non è una parola allora lo rimuovo dalla token list
-                if not match_word:
-                    lines.remove(token)
-                # se il token in questione è una parola e fa parte delle stopwords, oppure è un link, allora viene rimosso
-                # dalla lista dei Token
-                elif (token in stop_w) or (token in extra_stop_w) or (len(token) < 3):
-                    lines.remove(token)
-        return t_obj
 
     tokens_obj = create_token_list_obj(cig_obj)
     s1 = pd.Series(tokens_obj)
